@@ -1,0 +1,159 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  USER
+  ADMIN
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        RoleName         @unique
+  description String?
+  users       User[]
+  permissions RolePermission[]
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  roles       RolePermission[]
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+}
+
+model RolePermission {
+  id            String     @id @default(uuid())
+  role_id       String
+  permission_id String
+  role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+
+  @@unique([role_id, permission_id])
+}
+
+model User {
+  id                      String        @id @default(uuid())
+  name                    String
+  email                   String        @unique
+  password                String
+  role_id                 String
+  role                    Role          @relation(fields: [role_id], references: [id])
+  email_verified          Boolean       @default(false)
+  email_verification_code String?
+  reset_token             String?
+  reset_token_expires     DateTime?
+  balance                 Decimal       @default(0.00)
+  vehicles                Vehicle[]
+  slot_requests           SlotRequest[]
+  logs                    Log[]         @relation("UserLogs")
+  created_at              DateTime      @default(now())
+  updated_at              DateTime      @updatedAt
+}
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+  TRUCK
+  BICYCLE
+}
+
+enum VehicleSize {
+  SMALL
+  MEDIUM
+  LARGE
+  EXTRA_LARGE
+}
+
+model Vehicle {
+  id               String        @id @default(uuid())
+  user_id          String
+  user             User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plate_number     String        @unique
+  vehicle_type     VehicleType
+  size             VehicleSize
+  other_attributes Json?
+  slot_requests    SlotRequest[]
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+}
+
+enum ParkingSlotStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MAINTENANCE
+}
+
+enum SlotLocation {
+  NORTH_WING
+  SOUTH_WING
+  EAST_WING
+  WEST_WING
+  LEVEL_1
+  LEVEL_2
+}
+
+model ParkingSlot {
+  id            String            @id @default(uuid())
+  slot_number   String            @unique
+  size          VehicleSize
+  vehicle_type  VehicleType
+  status        ParkingSlotStatus @default(AVAILABLE)
+  location      SlotLocation?
+  slot_request  SlotRequest?
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  cost_per_hour Decimal?
+}
+
+enum SlotRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model SlotRequest {
+  id                      String            @id @default(uuid())
+  user_id                 String
+  user                    User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  vehicle_id              String
+  vehicle                 Vehicle           @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+  parking_slot_id         String?           @unique
+  parking_slot            ParkingSlot?      @relation(fields: [parking_slot_id], references: [id], onDelete: SetNull)
+  status                  SlotRequestStatus @default(PENDING)
+  admin_notes             String?
+  requested_at            DateTime          @default(now())
+  resolved_at             DateTime?
+  created_at              DateTime          @default(now())
+  updated_at              DateTime          @updatedAt
+  expected_duration_hours Int?
+  calculated_cost         Decimal
+}
+
+model Log {
+  id          String   @id @default(uuid())
+  user_id     String?
+  user        User?    @relation("UserLogs", fields: [user_id], references: [id], onDelete: SetNull)
+  action      String
+  entity_type String?
+  entity_id   String?
+  details     Json?
+  timestamp   DateTime @default(now())
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}

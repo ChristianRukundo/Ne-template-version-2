@@ -1,0 +1,648 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Parking Management System - Slot Requests API",
+        "description": "API documentation for requesting parking slots and managing those requests.",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:5000/api/v1",
+            "description": "Development server"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "Slot Requests",
+            "description": "Requesting parking slots and managing requests (by users and admins)"
+        }
+    ],
+    "paths": {
+        "/slot-requests": {
+            "post": {
+                "tags": [
+                    "Slot Requests"
+                ],
+                "summary": "Create a slot request (User)",
+                "description": "Creates a new request for a parking slot for one of the user's vehicles. Requires 'request_parking_slot' permission.",
+                "operationId": "createSlotRequest",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateSlotRequestRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Slot request created successfully, pending approval.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "request": {
+                                            "$ref": "#/components/schemas/SlotRequestResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequestError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/UnauthorizedError"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/ForbiddenError"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "Slot Requests"
+                ],
+                "summary": "List slot requests (User/Admin)",
+                "description": "Retrieves a paginated list of slot requests. Users see their own, Admins see all. Requires 'list_own_slot_requests' or 'manage_all_slot_requests' permission.",
+                "operationId": "listSlotRequests",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/PageQueryParam"
+                    },
+                    {
+                        "$ref": "#/components/parameters/LimitQueryParam"
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search by vehicle plate number (user) or user name/email (admin)",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sortBy",
+                        "in": "query",
+                        "description": "Field to sort requests by",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "status",
+                                "requested_at",
+                                "resolved_at",
+                                "vehicle_plate",
+                                "user_name",
+                                "created_at"
+                            ],
+                            "default": "created_at"
+                        }
+                    },
+                    {
+                        "$ref": "#/components/parameters/OrderQueryParam"
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by slot request status",
+                        "required": false,
+                        "schema": {
+                            "$ref": "#/components/schemas/SlotRequestStatusEnum"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A list of slot requests.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SlotRequestListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/UnauthorizedError"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/ForbiddenError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    }
+                }
+            }
+        },
+        "/slot-requests/{id}": {
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/IdPathParamUuid"
+                }
+            ],
+            "put": {
+                "tags": [
+                    "Slot Requests"
+                ],
+                "summary": "Update my pending slot request (User)",
+                "description": "Allows a user to update their own PENDING slot request (e.g., change vehicle or cancel). Requires 'manage_own_slot_requests' permission.",
+                "operationId": "updateMySlotRequest",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMySlotRequestRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Slot request updated successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "request": {
+                                            "$ref": "#/components/schemas/SlotRequestResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequestError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/UnauthorizedError"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/ForbiddenError"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    }
+                }
+            }
+        },
+        "/slot-requests/{id}/resolve": {
+            "parameters": [
+                {
+                    "$ref": "#/components/parameters/IdPathParamUuid"
+                }
+            ],
+            "patch": {
+                "tags": [
+                    "Slot Requests"
+                ],
+                "summary": "Approve or Reject a slot request (Admin)",
+                "description": "Allows an admin to approve (and assign a slot) or reject a PENDING slot request. Requires ADMIN role and 'manage_all_slot_requests' permission.",
+                "operationId": "resolveSlotRequest",
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ResolveSlotRequestRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Slot request resolved successfully.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "request": {
+                                            "$ref": "#/components/schemas/SlotRequestResponse"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequestError"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/UnauthorizedError"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/ForbiddenError"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalServerError"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
+        "schemas": {
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Error description"
+                    }
+                }
+            },
+            "Pagination": {
+                "type": "object",
+                "properties": {
+                    "currentPage": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "totalPages": {
+                        "type": "integer",
+                        "example": 5
+                    },
+                    "totalItems": {
+                        "type": "integer",
+                        "example": 42
+                    },
+                    "itemsPerPage": {
+                        "type": "integer",
+                        "example": 10
+                    }
+                }
+            },
+            "SlotRequestStatusEnum": {
+                "type": "string",
+                "enum": [
+                    "PENDING",
+                    "APPROVED",
+                    "REJECTED",
+                    "CANCELLED"
+                ]
+            },
+            "UserMinimumForRequest": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    }
+                }
+            },
+            "VehicleMinimumForRequest": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "plate_number": {
+                        "type": "string"
+                    },
+                    "vehicle_type": {
+                        "type": "string",
+                        "enum": [
+                            "CAR",
+                            "MOTORCYCLE",
+                            "TRUCK",
+                            "BICYCLE"
+                        ]
+                    },
+                    "size": {
+                        "type": "string",
+                        "enum": [
+                            "SMALL",
+                            "MEDIUM",
+                            "LARGE",
+                            "EXTRA_LARGE"
+                        ]
+                    }
+                }
+            },
+            "ParkingSlotMinimumForRequest": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "slot_number": {
+                        "type": "string"
+                    },
+                    "location": {
+                        "type": "string",
+                        "enum": [
+                            "NORTH_WING",
+                            "SOUTH_WING",
+                            "EAST_WING",
+                            "WEST_WING",
+                            "LEVEL_1",
+                            "LEVEL_2"
+                        ],
+                        "nullable": true
+                    }
+                }
+            },
+            "SlotRequestResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/UserMinimumForRequest"
+                    },
+                    "vehicle_id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "vehicle": {
+                        "$ref": "#/components/schemas/VehicleMinimumForRequest"
+                    },
+                    "parking_slot_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "parking_slot": {
+                        "$ref": "#/components/schemas/ParkingSlotMinimumForRequest",
+                        "nullable": true
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/SlotRequestStatusEnum",
+                        "example": "PENDING"
+                    },
+                    "admin_notes": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Awaiting available large spot."
+                    },
+                    "requested_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "resolved_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CreateSlotRequestRequest": {
+                "type": "object",
+                "required": [
+                    "vehicle_id"
+                ],
+                "properties": {
+                    "vehicle_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "UUID of the user's vehicle to request a slot for"
+                    }
+                }
+            },
+            "UpdateMySlotRequestRequest": {
+                "type": "object",
+                "description": "Update a PENDING slot request. Can change vehicle OR set status to CANCELLED.",
+                "properties": {
+                    "vehicle_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "New vehicle UUID for the request (optional)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "CANCELLED"
+                        ],
+                        "description": "Set to CANCELLED to cancel the request (optional)"
+                    }
+                },
+                "minProperties": 1
+            },
+            "ResolveSlotRequestRequest": {
+                "type": "object",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "APPROVED",
+                            "REJECTED"
+                        ],
+                        "description": "New status for the request"
+                    },
+                    "admin_notes": {
+                        "type": "string",
+                        "nullable": true,
+                        "example": "Slot assigned in preferred area."
+                    },
+                    "parking_slot_id_manual": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true,
+                        "description": "Admin can optionally specify a parking_slot_id to assign manually. If not provided on approval, system attempts automatic assignment."
+                    }
+                }
+            },
+            "SlotRequestListResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/SlotRequestResponse"
+                        }
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/Pagination"
+                    }
+                }
+            }
+        },
+        "parameters": {
+            "IdPathParamUuid": {
+                "name": "id",
+                "in": "path",
+                "required": true,
+                "description": "UUID Identifier of the resource",
+                "schema": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            },
+            "PageQueryParam": {
+                "name": "page",
+                "in": "query",
+                "description": "Page number",
+                "schema": {
+                    "type": "integer",
+                    "default": 1,
+                    "minimum": 1
+                }
+            },
+            "LimitQueryParam": {
+                "name": "limit",
+                "in": "query",
+                "description": "Items per page",
+                "schema": {
+                    "type": "integer",
+                    "default": 10,
+                    "minimum": 1,
+                    "maximum": 100
+                }
+            },
+            "OrderQueryParam": {
+                "name": "order",
+                "in": "query",
+                "description": "Sort order",
+                "schema": {
+                    "type": "string",
+                    "enum": [
+                        "asc",
+                        "desc"
+                    ],
+                    "default": "desc"
+                }
+            }
+        },
+        "responses": {
+            "UnauthorizedError": {
+                "description": "Unauthorized.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "ForbiddenError": {
+                "description": "Forbidden.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "NotFoundError": {
+                "description": "Not Found.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "BadRequestError": {
+                "description": "Bad Request.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "InternalServerError": {
+                "description": "Internal Server Error.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

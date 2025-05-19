@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default font family */
+body {
+  font-family: "Inter", sans-serif;
+}
+
+@layer base {
+  :root {
+    /* --- Golden Hour Tech Theme Variables (Darker Yellows) --- */
+    --theme-background-page: 38 35% 97%;
+    /* Very light, slightly warm off-white: hsl(38, 35%, 97%) ~ #FAF9F7 */
+    --theme-background-card: 0 0% 100%;
+    /* White for cards */
+    --theme-background-input: 38 25% 95%;
+    /* Light warm gray for inputs: hsl(38, 25%, 95%) ~ #F5F4F0 */
+
+    --theme-text-primary: 220 18% 20%;
+    /* Dark desaturated blue/charcoal: hsl(220, 18%, 20%) ~ #282E38 */
+    --theme-text-secondary: 220 15% 38%;
+    /* Lighter gray for secondary text: hsl(220, 15%, 38%) ~ #545B69 */
+    --theme-text-placeholder: 220 12% 58%;
+    /* Placeholder text color: hsl(220, 12%, 58%) ~ #878C99 */
+
+    /* DARKER YELLOWS */
+    --theme-accent-yellow: 40 90% 50%;
+    /* Rich Gold/Amber: hsl(40, 90%, 50%) ~ #F2AA0D (was 45 100% 57%) */
+    --theme-accent-yellow-hover: 38 95% 45%;
+    /* Deeper Gold/Amber for hover: hsl(38, 95%, 45%) ~ #D99407 (was 43 100% 52%) */
+    --theme-text-on-accent: 35 80% 10%;
+    /* Very Dark Brown for text on yellow (better contrast): hsl(35, 80%, 10%) ~ #2E1D02 */
+
+    --theme-link-default: 38 80% 48%;
+    /* Darker Amber link color: hsl(38, 80%, 48%) ~ #D18E17 */
+    --theme-link-hover: 36 85% 42%;
+    /* Even Deeper amber for link hover: hsl(36, 85%, 42%) ~ #C27C0B */
+
+    --theme-border-default: 38 20% 85%;
+    /* Default border color (warm light gray): hsl(38, 20%, 85%) ~ #E0DED8 */
+    --theme-border-input: 38 20% 78%;
+    /* Slightly darker for input borders: hsl(38, 20%, 78%) ~ #D4D1C7 */
+    --theme-border-focus: var(--theme-accent-yellow);
+    --theme-ring-focus: var(--theme-accent-yellow);
+
+    /* --- Shadcn UI Variables (Base - some will be overridden by theme) --- */
+    --background: var(--theme-background-page);
+    --foreground: var(--theme-text-primary);
+    --card: var(--theme-background-card);
+    --card-foreground: var(--theme-text-primary);
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --primary: var(--theme-accent-yellow);
+    /* Shadcn primary is our brand yellow */
+    --primary-foreground: var(--theme-text-on-accent);
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: var(--theme-text-secondary);
+    --accent: var(--theme-accent-yellow);
+    --accent-foreground: var(--theme-text-on-accent);
+    --destructive: 0 70% 50%;
+    /* Slightly less saturated red: hsl(0, 70%, 50%) */
+    --destructive-foreground: 0 0% 98%;
+    /* Keep light for good contrast */
+    --border: var(--theme-border-default);
+    --input: var(--theme-border-input);
+    --ring: var(--theme-ring-focus);
+    --radius: 0.75rem;
+  }
+
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom scrollbar using themed colors (adjust if needed) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  /* Use a very light version of page bg or a neutral gray */
+  @apply bg-slate-100 rounded-full;
+  /* For dark mode: .dark:bg-slate-700 */
+}
+
+::-webkit-scrollbar-thumb {
+  /* Use a muted version of brand yellow or a complementary color */
+  @apply bg-amber-300 rounded-full transition-colors;
+  /* For dark mode: .dark:bg-amber-600 */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-amber-400;
+
+}
+
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-in-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.card-hover {
+  @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+}
+
+.btn-hover {
+  @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
+}
+
+.glass-effect {
+  @apply bg-white bg-opacity-20 backdrop-blur-lg rounded-lg border border-white border-opacity-20;
+}
