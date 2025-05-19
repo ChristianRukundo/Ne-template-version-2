@@ -265,10 +265,6 @@ const updateParkingSlot = async (req, res) => {
     const { slot_number, size, vehicle_type, location, status } = req.body;
     const adminUserId = req.user.user_id;
 
-    if (isNaN(slotId)) {
-      return res.status(400).json({ message: "Invalid slot ID." });
-    }
-
     const updateData = {};
     if (slot_number) {
       if (!/^[A-Z0-9-]{2,10}$/i.test(slot_number)) {
@@ -366,10 +362,6 @@ const deleteParkingSlot = async (req, res) => {
   try {
     const slotId = req.params.id;
     const adminUserId = req.user.user_id;
-
-    if (isNaN(slotId)) {
-      return res.status(400).json({ message: "Invalid slot ID." });
-    }
 
     const slotToDelete = await prisma.parkingSlot.findUnique({
       where: { id: slotId },

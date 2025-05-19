@@ -106,6 +106,8 @@ export const ParkingSlotForm = ({
       toast.success(
         `Parking slot ${isEditMode ? "updated" : "created"} successfully!`
       );
+       queryClient.invalidateQueries("availableParkingSlots");
+        queryClient.invalidateQueries("admin-parkingSlots");
       onSuccess(); // Prop function to refetch list and close modal
     },
     onError: (error) => {

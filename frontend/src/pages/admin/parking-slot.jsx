@@ -109,6 +109,7 @@ export const AdminParkingSlotsPage = () => {
   );
 
   const slots = data?.data || [];
+  console.log(slots)
   const pagination = data?.pagination || {
     totalItems: 0,
     currentPage: 1,

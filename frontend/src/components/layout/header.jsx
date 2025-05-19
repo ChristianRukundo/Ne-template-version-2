@@ -61,8 +61,8 @@ export const Header = ({ sidebarCollapsed, toggleSidebar }) => {
 
         {/* Right Side: Notifications & User Menu */}
         <div className="flex items-center gap-3 md:gap-4">
-          {/* Notifications (Placeholder) */}
-          <div className="relative">
+
+          {/* <div className="relative">
             <Button
               variant="ghost"
               size="icon"
@@ -70,10 +70,10 @@ export const Header = ({ sidebarCollapsed, toggleSidebar }) => {
               aria-label="Notifications"
             >
               <Bell className="h-[18px] w-[18px]" />
-              {/* Example notification dot */}
+
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-1 ring-card-bg" />
             </Button>
-          </div>
+          </div> */}
 
           {/* User Dropdown */}
           <DropdownMenu>

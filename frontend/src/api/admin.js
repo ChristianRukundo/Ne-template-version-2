@@ -60,7 +60,7 @@ export const deleteUser = async (id) => {
 
 // Update user role
 export const updateUserRole = async ({ id, roleName }) => {
-  const response = await api.put(`/admin/users/${id}/role`, { roleName })
+  const response = await api.put(`/admin/users/${id}`, { roleName })
   return response.data
 }
 

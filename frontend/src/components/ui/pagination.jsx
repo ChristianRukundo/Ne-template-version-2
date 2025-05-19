@@ -1,68 +1,62 @@
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
-import { Button } from "./button";
+import { Button } from "./button"; // Assuming this path is correct
+
+const DEBUG_PAGINATION_PREFIX = "[Pagination DEBUG]";
 
 export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-  // Don't render pagination if there's only one page
-  if (totalPages <= 1) return null;
+  console.log(`${DEBUG_PAGINATION_PREFIX} Rendering. currentPage: ${currentPage}, totalPages: ${totalPages}`);
 
-  // Generate page numbers to display
+  if (totalPages <= 1) {
+    console.log(`${DEBUG_PAGINATION_PREFIX} totalPages <= 1, rendering null.`);
+    return null;
+  }
+
   const getPageNumbers = () => {
     const pageNumbers = [];
-    const maxPagesToShow = 5; // Show at most 5 page numbers
+    const maxPagesToShow = 5;
 
     if (totalPages <= maxPagesToShow) {
-      // If we have 5 or fewer pages, show all of them
       for (let i = 1; i <= totalPages; i++) {
         pageNumbers.push(i);
       }
     } else {
-      // Always include first page
       pageNumbers.push(1);
-
-      // Calculate start and end of page range
       let start = Math.max(2, currentPage - 1);
       let end = Math.min(totalPages - 1, currentPage + 1);
-
-      // Adjust if we're at the beginning
-      if (currentPage <= 2) {
-        end = 4;
-      }
-
-      // Adjust if we're at the end
-      if (currentPage >= totalPages - 1) {
-        start = totalPages - 3;
-      }
-
-      // Add ellipsis if needed before middle pages
-      if (start > 2) {
-        pageNumbers.push("ellipsis1");
-      }
-
-      // Add middle pages
-      for (let i = start; i <= end; i++) {
-        pageNumbers.push(i);
-      }
-
-      // Add ellipsis if needed after middle pages
-      if (end < totalPages - 1) {
-        pageNumbers.push("ellipsis2");
-      }
-
-      // Always include last page
+      if (currentPage <= 2) end = 4;
+      if (currentPage >= totalPages - 1) start = totalPages - 3;
+      if (start > 2) pageNumbers.push("ellipsis1");
+      for (let i = start; i <= end; i++) pageNumbers.push(i);
+      if (end < totalPages - 1) pageNumbers.push("ellipsis2");
       pageNumbers.push(totalPages);
     }
-
+    console.log(`${DEBUG_PAGINATION_PREFIX} Generated pageNumbers:`, pageNumbers);
     return pageNumbers;
   };
 
   const pageNumbers = getPageNumbers();
+
+  const handlePrevClick = () => {
+    console.log(`${DEBUG_PAGINATION_PREFIX} Previous button clicked. Current page: ${currentPage}. Calling onPageChange with ${currentPage - 1}`);
+    onPageChange(currentPage - 1);
+  };
+
+  const handleNextClick = () => {
+    console.log(`${DEBUG_PAGINATION_PREFIX} Next button clicked. Current page: ${currentPage}. Calling onPageChange with ${currentPage + 1}`);
+    onPageChange(currentPage + 1);
+  };
+
+  const handlePageClick = (page) => {
+    console.log(`${DEBUG_PAGINATION_PREFIX} Page ${page} button clicked. Current page: ${currentPage}. Calling onPageChange with ${page}`);
+    onPageChange(page);
+  }
 
   return (
     <div className="flex items-center justify-center space-x-2">
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage - 1)}
+        onClick={handlePrevClick}
         disabled={currentPage === 1}
         className="hidden bg-brand-yellow/80 hover:bg-brand-yellow/50 text-white hover:text-white sm:flex"
       >
@@ -72,7 +66,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage - 1)}
+        onClick={handlePrevClick}
         disabled={currentPage === 1}
         className="sm:hidden"
       >
@@ -100,12 +94,11 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
               key={page}
               variant={currentPage === page ? "default" : "outline"}
               size="sm"
-              onClick={() => onPageChange(page)}
-              className={`w-9 ${
-                currentPage === page
-                  ? "bg-brand-yellow/80 hover:bg-brand-yellow/50 text-white hover:text-white"
-                  : " "
-              }`}
+              onClick={() => handlePageClick(page)}
+              className={`w-9 ${currentPage === page
+                ? "bg-brand-yellow/80 hover:bg-brand-yellow/50 text-white hover:text-white"
+                : " "
+                }`}
             >
               {page}
             </Button>
@@ -116,7 +109,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage + 1)}
+        onClick={handleNextClick}
         disabled={currentPage === totalPages}
         className="hidden bg-brand-yellow/80 hover:bg-brand-yellow/50 text-white hover:text-white sm:flex"
       >
@@ -126,7 +119,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }) => {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(currentPage + 1)}
+        onClick={handleNextClick}
         disabled={currentPage === totalPages}
         className="sm:hidden"
       >

@@ -1,8 +1,12 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, MapPin, ShieldCheck, Zap, MessageSquare } from "lucide-react"; // Example icons
+import { useAuth } from "../context/auth-context";
+import { useEffect } from "react";
 
 // Placeholder for a hero illustration/animation - you'd replace this
 const HeroIllustration = () => (
+
+
   <div className="aspect-[16/10] md:aspect-[16/9] lg:aspect-[21/9] rounded-xl bg-gradient-to-br from-brand-yellow-light/30 via-brand-yellow/10 to-transparent relative overflow-hidden border border-brand-yellow/20 shadow-xl">
     {/* Mockup of an abstract parking interface or city with highlighted spots */}
     <div className="absolute inset-0 flex items-center justify-center">
@@ -24,6 +28,14 @@ const testimonials = [
 
 
 export const HomePage = () => {
+  const { user } = useAuth(); 
+  useEffect(() => {
+    //redirect to dashboard if user is logged in
+    if (user) {
+      window.location.href = "/my-vehicles";
+    }
+  }, [user]);
+
   return (
     <div className="bg-page-bg text-text-main min-h-screen">
       {/* Navigation Bar */}
