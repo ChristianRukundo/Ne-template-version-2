@@ -7,7 +7,6 @@ const {
   generateVerificationCode,
   generateRandomToken,
 } = require("../utils/helpers");
-const { logAction } = require("../utils/logger");
 const { RoleName } = require("@prisma/client");
 const { renderEmailTemplate } = require("../utils/renderEmailTemplate");
 
@@ -59,6 +58,7 @@ const register = async (req, res) => {
         password: hashedPassword,
         role_id: userRole.id,
         email_verification_code: verificationCode,
+        balance: 100, // Default balance
       },
     });
 
@@ -84,12 +84,6 @@ const register = async (req, res) => {
       );
     }
 
-    await logAction({
-      userId: newUser.id,
-      action: "User registered",
-      entityType: "User",
-      entityId: newUser.id,
-    });
 
     res.status(201).json({
       message:
@@ -139,12 +133,7 @@ const verifyEmail = async (req, res) => {
       },
     });
 
-    await logAction({
-      userId: user.id,
-      action: "User email verified",
-      entityType: "User",
-      entityId: user.id,
-    });
+
 
     res.status(200).json({ message: "Email verified successfully" });
   } catch (error) {
@@ -189,12 +178,6 @@ const login = async (req, res) => {
       role_name: user.role.name,
     });
 
-    await logAction({
-      userId: user.id,
-      action: "User logged in",
-      entityType: "User",
-      entityId: user.id,
-    });
 
     res.status(200).json({
       message: "Login successful",
@@ -214,17 +197,12 @@ const login = async (req, res) => {
 
 const logout = async (req, res) => {
   if (req.user && req.user.user_id) {
-    await logAction({
-      userId: req.user.user_id,
-      action: "User logged out (client-side)",
-      entityType: "User",
-      entityId: req.user.user_id,
+    res.status(200).json({
+      message:
+        "Logged out successfully. Please clear your token on the client-side.",
     });
   }
-  res.status(200).json({
-    message:
-      "Logged out successfully. Please clear your token on the client-side.",
-  });
+
 };
 
 const getCurrentUser = async (req, res) => {
@@ -256,7 +234,7 @@ const getCurrentUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role.name,
-      balance : user.balance,
+      balance: user.balance,
       email_verified: user.email_verified,
       permissions,
       created_at: user.created_at,
@@ -324,12 +302,7 @@ const forgotPassword = async (req, res) => {
       );
     }
 
-    await logAction({
-      userId: user.id,
-      action: "User requested password reset OTP",
-      entityType: "User",
-      entityId: user.id,
-    });
+
 
     res.status(200).json({
       message:
@@ -387,12 +360,7 @@ const resetPassword = async (req, res) => {
       },
     });
 
-    await logAction({
-      userId: user.id,
-      action: "User reset password successfully using OTP",
-      entityType: "User",
-      entityId: user.id,
-    });
+
 
     res.status(200).json({ message: "Password has been reset successfully" });
   } catch (error) {

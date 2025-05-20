@@ -149,7 +149,7 @@ export const LoginForm = () => {
                   <input id="rememberMe" name="rememberMe" type="checkbox" checked={formData.rememberMe} onChange={handleChange} className="h-4 w-4 text-brand-yellow border-theme-border-input rounded focus:ring-brand-yellow focus:ring-offset-card-bg" />
                   <Label htmlFor="rememberMe" className="ml-2 text-text-main cursor-pointer text-xs sm:text-sm">Remember Me</Label>
                 </div>
-                <Link to="/forgot-password" className="font-medium text-link hover:text-link-hover text-xs sm:text-sm hover:underline">Forgot?</Link>
+                <Link to="/forgot-password" className="font-medium text-link hover:text-link-hover text-xs sm:text-sm hover:underline">Forgot your password ?</Link>
               </div>
 
               {errors.general && <p className="text-sm text-destructive text-center py-2">{errors.general}</p>}

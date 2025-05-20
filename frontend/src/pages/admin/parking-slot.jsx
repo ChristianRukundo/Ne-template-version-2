@@ -298,9 +298,8 @@ export const AdminParkingSlotsPage = () => {
                           Slot #{" "}
                           {sortBy === "slot_number" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>
@@ -313,9 +312,8 @@ export const AdminParkingSlotsPage = () => {
                           Size{" "}
                           {sortBy === "size" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>
@@ -328,9 +326,8 @@ export const AdminParkingSlotsPage = () => {
                           Pref. Type{" "}
                           {sortBy === "vehicle_type" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>
@@ -343,9 +340,8 @@ export const AdminParkingSlotsPage = () => {
                           Location{" "}
                           {sortBy === "location" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>
@@ -358,9 +354,8 @@ export const AdminParkingSlotsPage = () => {
                           Status{" "}
                           {sortBy === "status" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>
@@ -373,9 +368,8 @@ export const AdminParkingSlotsPage = () => {
                           Created{" "}
                           {sortBy === "created_at" && (
                             <ArrowUpDown
-                              className={`ml-2 h-4 w-4 ${
-                                sortOrder === "desc" ? "rotate-180" : ""
-                              }`}
+                              className={`ml-2 h-4 w-4 ${sortOrder === "desc" ? "rotate-180" : ""
+                                }`}
                             />
                           )}
                         </div>

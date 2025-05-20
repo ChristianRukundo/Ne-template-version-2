@@ -1,6 +1,5 @@
 // controllers/parkingslot.controller.js
 const prisma = require("../config/database");
-const { logAction } = require("../utils/logger");
 const {
   VehicleSize,
   VehicleType,
@@ -19,6 +18,7 @@ const createParkingSlot = async (req, res) => {
       size,
       vehicle_type,
       location,
+      cost_per_hour,
       status = ParkingSlotStatus.AVAILABLE,
     } = req.body;
     const adminUserId = req.user.user_id;
@@ -90,15 +90,11 @@ const createParkingSlot = async (req, res) => {
         vehicle_type: vehicle_type.toUpperCase(),
         location: location ? location.toUpperCase() : null,
         status: status.toUpperCase(),
+        cost_per_hour: cost_per_hour || null,
       },
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin created parking slot: ${newSlot.slot_number}`,
-      entityType: "ParkingSlot",
-      entityId: newSlot.id,
-    });
+
 
     res
       .status(201)
@@ -328,14 +324,6 @@ const updateParkingSlot = async (req, res) => {
       data: updateData,
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin updated parking slot: ${updatedSlot.slot_number}`,
-      entityType: "ParkingSlot",
-      entityId: updatedSlot.id,
-      details: { changes: Object.keys(updateData) },
-    });
-
     res
       .status(200)
       .json({
@@ -389,12 +377,6 @@ const deleteParkingSlot = async (req, res) => {
       where: { id: slotId },
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin deleted parking slot: ${slotToDelete.slot_number}`,
-      entityType: "ParkingSlot",
-      entityId: slotId,
-    });
 
     res.status(200).json({ message: "Parking slot deleted successfully." });
   } catch (error) {
@@ -490,18 +472,7 @@ const bulkCreateParkingSlots = async (req, res) => {
     });
     createdCount = result.count;
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin bulk created ${createdCount} parking slots with prefix ${prefix}.`,
-      entityType: "ParkingSlot",
-      details: {
-        requestedCount: count,
-        actualCreated: createdCount,
-        prefix,
-        size,
-        vehicle_type,
-      },
-    });
+
 
     res
       .status(201)

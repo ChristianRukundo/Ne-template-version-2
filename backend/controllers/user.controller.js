@@ -1,7 +1,6 @@
 // controllers/user.controller.js
 const prisma = require("../config/database");
 const bcrypt = require("bcrypt");
-const { logAction } = require("../utils/logger");
 const { generateVerificationCode } = require("../utils/helpers"); // <-- IMPORT
 const { sendEmail } = require("../config/email"); // <-- IMPORT
 const { renderEmailTemplate } = require("../utils/renderEmailTemplate"); // <-- IMPORT
@@ -114,13 +113,6 @@ const updateUserProfile = async (req, res) => {
       }
     }
 
-    await logAction({
-      userId: updatedUserFromDb.id,
-      action: "User updated own profile",
-      entityType: "User",
-      entityId: updatedUserFromDb.id,
-      details: { changes: Object.keys(updateData) },
-    });
 
     res.status(200).json({
       message: `Profile updated successfully.${

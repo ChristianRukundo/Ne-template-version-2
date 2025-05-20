@@ -20,13 +20,18 @@ const generateToken = (payload) => {
  * @returns {object|null} The decoded payload if valid, otherwise null.
  */
 const verifyToken = (token) => {
+  console.log("Start of a token")
+  console.log(token)
+  console.log("End of a token")
+
   try {
     return jwt.verify(token, JWT_SECRET);
+
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-        console.log('Token expired');
+      console.log('Token expired');
     } else {
-        console.error('Invalid token:', error.message);
+      console.error('Invalid token:', error.message);
     }
     return null;
   }

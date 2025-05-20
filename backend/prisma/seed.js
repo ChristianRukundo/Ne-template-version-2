@@ -19,7 +19,7 @@ async function hashPassword(password) {
 async function main() {
   console.log("Start seeding ...");
 
-  // Clear existing data (ensure correct order for foreign keys)
+  // Clear existing data
   await prisma.log.deleteMany({});
   await prisma.slotRequest.deleteMany({});
   await prisma.parkingSlot.deleteMany({});
@@ -32,83 +32,43 @@ async function main() {
 
   // --- Create Roles ---
   const adminRole = await prisma.role.create({
-    data: {
-      name: RoleName.ADMIN,
-      description: "Administrator with full access",
-    },
+    data: { name: RoleName.ADMIN, description: "Administrator" },
   });
   const userRole = await prisma.role.create({
-    data: {
-      name: RoleName.USER,
-      description: "Regular user with vehicle and slot management access",
-    },
+    data: { name: RoleName.USER, description: "Regular user" },
   });
   console.log("Roles created.");
 
-  // --- Create Permissions --- (permissionsData remains the same as before)
+  // --- Create Permissions ---
   const permissionsData = [
-    { name: "manage_own_profile", description: "Can update their own profile" },
-    {
-      name: "manage_own_vehicles",
-      description: "Can add, update, delete their own vehicles",
-    },
-    { name: "list_own_vehicles", description: "Can list their own vehicles" },
-    {
-      name: "request_parking_slot",
-      description: "Can request a parking slot for their vehicle",
-    },
-    {
-      name: "manage_own_slot_requests",
-      description: "Can update or cancel their pending slot requests",
-    },
-    {
-      name: "list_own_slot_requests",
-      description: "Can list their own slot requests",
-    },
-    {
-      name: "view_available_parking_slots",
-      description: "Can view available parking slots",
-    },
-    {
-      name: "manage_all_users",
-      description: "Can create, read, update, delete all users",
-    },
-    { name: "assign_user_roles", description: "Can assign roles to users" },
-    {
-      name: "manage_parking_slots",
-      description:
-        "Can create, read, update, delete parking slots (including bulk)",
-    },
-    {
-      name: "manage_all_slot_requests",
-      description: "Can approve or reject any slot request",
-    },
-    {
-      name: "view_all_parking_slots",
-      description: "Can view all parking slots regardless of status",
-    },
-    { name: "view_audit_logs", description: "Can view system audit logs" },
+    { name: "manage_own_profile", description: "Can update own profile" },
+    { name: "manage_own_vehicles", description: "Can manage own vehicles" },
+    { name: "list_own_vehicles", description: "Can list own vehicles" },
+    { name: "request_parking_slot", description: "Can request a slot" },
+    { name: "manage_own_slot_requests", description: "Can manage own requests" },
+    { name: "list_own_slot_requests", description: "Can list own requests" },
+    { name: "view_available_parking_slots", description: "Can view available slots" },
+    { name: "manage_all_users", description: "Can manage all users" },
+    { name: "assign_user_roles", description: "Can assign roles" },
+    { name: "manage_parking_slots", description: "Can manage all slots" },
+    { name: "manage_all_slot_requests", description: "Can manage all requests" },
+    { name: "view_all_parking_slots", description: "Can view all slots" },
+    { name: "view_audit_logs", description: "Can view audit logs" },
   ];
   const createdPermissions = await Promise.all(
-    permissionsData.map((permData) =>
-      prisma.permission.create({ data: permData })
-    )
+    permissionsData.map((permData) => prisma.permission.create({ data: permData }))
   );
   console.log("Permissions created.");
 
-  // --- Assign Permissions to Roles --- (logic remains the same)
+  // --- Assign Permissions to Roles ---
   for (const permission of createdPermissions) {
     await prisma.rolePermission.create({
       data: { role_id: adminRole.id, permission_id: permission.id },
     });
   }
   const userPermNames = [
-    "manage_own_profile",
-    "manage_own_vehicles",
-    "list_own_vehicles",
-    "request_parking_slot",
-    "manage_own_slot_requests",
-    "list_own_slot_requests",
+    "manage_own_profile", "manage_own_vehicles", "list_own_vehicles",
+    "request_parking_slot", "manage_own_slot_requests", "list_own_slot_requests",
     "view_available_parking_slots",
   ];
   for (const permName of userPermNames) {
@@ -121,105 +81,67 @@ async function main() {
   }
   console.log("RolePermissions created.");
 
-  // --- Create Default Admin User (with some balance for testing if needed) ---
-  const adminPassword = await hashPassword(
-    process.env.ADMIN_DEFAULT_PASSWORD || "admin123"
-  );
+  // --- Create Default Users with Balance ---
+  const adminPassword = await hashPassword(process.env.ADMIN_DEFAULT_PASSWORD || "$password123");
   await prisma.user.create({
     data: {
-      name: "Admin User",
-      email: process.env.ADMIN_DEFAULT_EMAIL || "admin@parkingsystem.com",
-      password: adminPassword,
-      role_id: adminRole.id,
-      email_verified: true,
-      balance: new Prisma.Decimal(1000.0), // Give admin some balance
+      name: "Admin User", email: process.env.ADMIN_DEFAULT_EMAIL || "admin@parkingsystem.com",
+      password: adminPassword, role_id: adminRole.id, email_verified: true,
+      balance: new Prisma.Decimal(1000.00),
     },
   });
-  console.log("Default admin user created.");
-
-  // --- Create Default Regular User (with starting balance) ---
-  const regularUserPassword = await hashPassword(
-    process.env.USER_DEFAULT_PASSWORD || "user123"
-  );
+  const regularUserPassword = await hashPassword(process.env.USER_DEFAULT_PASSWORD || "user123");
   await prisma.user.create({
     data: {
-      name: "Regular User",
-      email: process.env.USER_DEFAULT_EMAIL || "user@parkingsystem.com",
-      password: regularUserPassword,
-      role_id: userRole.id,
-      email_verified: true,
-      balance: new Prisma.Decimal(50.0), // Give regular user a starting balance
+      name: "Regular User", email: process.env.USER_DEFAULT_EMAIL || "user@parkingsystem.com",
+      password: regularUserPassword, role_id: userRole.id, email_verified: true,
+      balance: new Prisma.Decimal(75.50), // User starts with some balance
     },
   });
-  console.log("Default regular user created.");
+  console.log("Default users created.");
 
-  // --- Create Sample Parking Slots (with cost_per_hour) ---
+  // --- Create Sample Parking Slots (ALL WITH A DEFINED cost_per_hour) ---
   const sampleSlotsData = [
-    {
-      slot_number: "A01",
+    { slot_number: "A01", size: VehicleSize.MEDIUM, vehicle_type: VehicleType.CAR, location: SlotLocation.NORTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("2.50") },
+    { slot_number: "A02", size: VehicleSize.MEDIUM, vehicle_type: VehicleType.CAR, location: SlotLocation.NORTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("2.50") },
+    { slot_number: "A03", size: VehicleSize.LARGE, vehicle_type: VehicleType.CAR, location: SlotLocation.NORTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("3.00") },
+    { slot_number: "A04", size: VehicleSize.MEDIUM, vehicle_type: VehicleType.CAR, location: SlotLocation.NORTH_WING, status: ParkingSlotStatus.UNAVAILABLE, cost_per_hour: new Prisma.Decimal("2.75") },
+    { slot_number: "A05", size: VehicleSize.EXTRA_LARGE, vehicle_type: VehicleType.TRUCK, location: SlotLocation.NORTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("5.50") },
+
+    { slot_number: "B01", size: VehicleSize.SMALL, vehicle_type: VehicleType.MOTORCYCLE, location: SlotLocation.EAST_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("1.00") },
+    { slot_number: "B02", size: VehicleSize.SMALL, vehicle_type: VehicleType.MOTORCYCLE, location: SlotLocation.EAST_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("1.00") },
+    { slot_number: "B03", size: VehicleSize.SMALL, vehicle_type: VehicleType.MOTORCYCLE, location: SlotLocation.EAST_WING, status: ParkingSlotStatus.MAINTENANCE, cost_per_hour: new Prisma.Decimal("1.25") },
+    // Adding B120 if it was a specific slot number causing issues
+    { slot_number: "B120", size: VehicleSize.MEDIUM, vehicle_type: VehicleType.CAR, location: SlotLocation.EAST_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("2.60") },
+
+
+    { slot_number: "C01", size: VehicleSize.LARGE, vehicle_type: VehicleType.TRUCK, location: SlotLocation.SOUTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("4.75") },
+    { slot_number: "C02", size: VehicleSize.LARGE, vehicle_type: VehicleType.TRUCK, location: SlotLocation.SOUTH_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("4.75") },
+
+    { slot_number: "D01", size: VehicleSize.SMALL, vehicle_type: VehicleType.BICYCLE, location: SlotLocation.WEST_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("0.50") }, // Changed from null
+    { slot_number: "D02", size: VehicleSize.SMALL, vehicle_type: VehicleType.CAR, location: SlotLocation.WEST_WING, status: ParkingSlotStatus.AVAILABLE, cost_per_hour: new Prisma.Decimal("2.00") }, // Small car slot
+  ];
+
+  // Add more slots to ensure enough variety and quantity
+  for (let i = 1; i <= 5; i++) {
+    sampleSlotsData.push({
+      slot_number: `E${String(i).padStart(2, '0')}`,
       size: VehicleSize.MEDIUM,
       vehicle_type: VehicleType.CAR,
-      location: SlotLocation.NORTH_WING,
+      location: SlotLocation.LEVEL_1,
       status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: new Prisma.Decimal(2.5),
-    },
-    {
-      slot_number: "A02",
-      size: VehicleSize.MEDIUM,
-      vehicle_type: VehicleType.CAR,
-      location: SlotLocation.NORTH_WING,
-      status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: new Prisma.Decimal(2.5),
-    },
-    {
-      slot_number: "A03",
-      size: VehicleSize.LARGE,
-      vehicle_type: VehicleType.CAR,
-      location: SlotLocation.NORTH_WING,
-      status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: new Prisma.Decimal(3.0),
-    },
-    {
-      slot_number: "A04",
-      size: VehicleSize.MEDIUM,
-      vehicle_type: VehicleType.CAR,
-      location: SlotLocation.NORTH_WING,
-      status: ParkingSlotStatus.UNAVAILABLE,
-      cost_per_hour: new Prisma.Decimal(2.5),
-    }, // Was unavailable
-    {
-      slot_number: "B01",
-      size: VehicleSize.SMALL,
-      vehicle_type: VehicleType.MOTORCYCLE,
-      location: SlotLocation.EAST_WING,
-      status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: new Prisma.Decimal(1.0),
-    },
-    {
-      slot_number: "B02",
-      size: VehicleSize.SMALL,
-      vehicle_type: VehicleType.MOTORCYCLE,
-      location: SlotLocation.EAST_WING,
-      status: ParkingSlotStatus.MAINTENANCE,
-      cost_per_hour: new Prisma.Decimal(1.0),
-    }, // Was maintenance
-    {
-      slot_number: "C01",
+      cost_per_hour: new Prisma.Decimal("2.25")
+    });
+    sampleSlotsData.push({
+      slot_number: `F${String(i).padStart(2, '0')}`,
       size: VehicleSize.LARGE,
       vehicle_type: VehicleType.TRUCK,
-      location: SlotLocation.SOUTH_WING,
-      status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: new Prisma.Decimal(5.0),
-    },
-    {
-      slot_number: "D01",
-      size: VehicleSize.SMALL,
-      vehicle_type: VehicleType.BICYCLE,
-      location: SlotLocation.WEST_WING,
-      status: ParkingSlotStatus.AVAILABLE,
-      cost_per_hour: null,
-    }, // Example of a free slot
-  ];
+      location: SlotLocation.LEVEL_2,
+      status: i % 2 === 0 ? ParkingSlotStatus.AVAILABLE : ParkingSlotStatus.UNAVAILABLE, // Mix statuses
+      cost_per_hour: new Prisma.Decimal("4.50")
+    });
+  }
+
 
   for (const slotData of sampleSlotsData) {
     await prisma.parkingSlot.create({
@@ -229,7 +151,7 @@ async function main() {
         vehicle_type: slotData.vehicle_type,
         location: slotData.location,
         status: slotData.status,
-        cost_per_hour: slotData.cost_per_hour, // Add cost
+        cost_per_hour: slotData.cost_per_hour,
       },
     });
   }

@@ -1,6 +1,6 @@
 // controllers/vehicle.controller.js
 const prisma = require("../config/database");
-const { logAction } = require("../utils/logger");
+
 const { VehicleType, VehicleSize } = require("@prisma/client"); // For validating enum values
 
 /**
@@ -62,12 +62,6 @@ const addVehicle = async (req, res) => {
       },
     });
 
-    await logAction({
-      userId: userId,
-      action: `User added vehicle: ${newVehicle.plate_number}`,
-      entityType: "Vehicle",
-      entityId: newVehicle.id,
-    });
 
     res
       .status(201)
@@ -284,13 +278,7 @@ const updateMyVehicle = async (req, res) => {
       data: updateData,
     });
 
-    await logAction({
-      userId: userId,
-      action: `User updated vehicle: ${updatedVehicle.plate_number}`,
-      entityType: "Vehicle",
-      entityId: updatedVehicle.id,
-      details: { changes: Object.keys(updateData) },
-    });
+
 
     res.status(200).json({
       message: "Vehicle updated successfully",
@@ -351,13 +339,6 @@ const deleteMyVehicle = async (req, res) => {
 
     await prisma.vehicle.delete({
       where: { id: vehicleId },
-    });
-
-    await logAction({
-      userId: userId,
-      action: `User deleted vehicle: ${vehicleToDelete.plate_number}`,
-      entityType: "Vehicle",
-      entityId: vehicleId,
     });
 
     res.status(200).json({ message: "Vehicle deleted successfully." });

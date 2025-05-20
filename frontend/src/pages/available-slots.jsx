@@ -5,8 +5,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "react-query";
 import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
-import { Search, ArrowUpDown, ParkingCircle, Send } from "lucide-react"; // Added Send icon
-import { getAvailableParkingSlots } from "../api/parking-slot"; // API for users to view slots
+import { Search, ArrowUpDown, ParkingCircle, Send, DollarSign } from "lucide-react"; // Added DollarSign
+import { getAvailableParkingSlots } from "../api/parking-slot";
 import { useAuth } from "../context/auth-context";
 import {
   Table,
@@ -32,7 +32,6 @@ import { Badge } from "../components/ui/badge";
 import { RequestSlotModal } from "../components/slot/request-slot-modal";
 
 export const AvailableSlotsPage = () => {
-  // Renamed for clarity
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -42,7 +41,6 @@ export const AvailableSlotsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
 
-  // Modal state
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedSlotForRequest, setSelectedSlotForRequest] = useState(null);
 
@@ -53,7 +51,7 @@ export const AvailableSlotsPage = () => {
 
   const { data, isLoading, isError, refetch } = useQuery(
     [
-      "availableParkingSlots",
+      "availableParkingSlots", // Query key
       searchQuery,
       sortBy,
       sortOrder,
@@ -62,13 +60,12 @@ export const AvailableSlotsPage = () => {
     ],
     () =>
       getAvailableParkingSlots({
-        // Use the correct API for users
         search: searchQuery.trim(),
         sortBy,
         order: sortOrder,
         page: currentPage,
         limit: pageSize,
-        // The backend controller should automatically filter by status: 'AVAILABLE' for non-admin users
+        // Backend filters to 'AVAILABLE' for non-admins
       }),
     {
       keepPreviousData: true,
@@ -76,7 +73,7 @@ export const AvailableSlotsPage = () => {
       onError: (error) => {
         toast.error(
           error.response?.data?.message ||
-            "Failed to load available parking slots"
+          "Failed to load available parking slots"
         );
       },
     }
@@ -114,24 +111,25 @@ export const AvailableSlotsPage = () => {
   };
 
   const getStatusBadge = (status) => {
-    // Should ideally only show AVAILABLE here
     if (status === "AVAILABLE") {
       return (
-        <Badge className="bg-green-100 text-green-700 border-green-300">
+        <Badge className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200">
           {status}
         </Badge>
       );
     }
-    return <Badge variant="outline">{status}</Badge>; // Fallback for unexpected statuses
+    // Fallback for other statuses, though ideally only AVAILABLE are shown here.
+    return <Badge variant="outline">{status}</Badge>;
   };
 
+  // --- Permission Check, Loading, Error States (same as your provided code) ---
   if (!canViewAvailableSlots && !isLoading) {
     return (
       <div className="text-center py-10">
-        <p className="text-red-500">
+        <p className="text-destructive"> {/* Using themed color */}
           You do not have permission to view available slots.
         </p>
-        <Button onClick={() => navigate("/dashboard")} className="mt-4">
+        <Button onClick={() => navigate("/dashboard")} className="mt-4 bg-brand-yellow hover:bg-brand-yellow-hover text-text-on-brand">
           Go to Dashboard
         </Button>
       </div>
@@ -141,146 +139,114 @@ export const AvailableSlotsPage = () => {
   if (isLoading)
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader />
+        <Loader size="default" colorClassName="border-brand-yellow" /> {/* Themed page loader */}
       </div>
     );
   if (isError)
     return (
-      <div className="text-center py-10 text-red-500">
+      <div className="text-center py-10 text-destructive"> {/* Themed color */}
         Error loading available parking slots.{" "}
-        <Button onClick={() => refetch()}>Retry</Button>
+        <Button onClick={() => refetch()} variant="outline">Retry</Button>
       </div>
     );
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="container mx-auto py-6 px-4 sm:px-6 lg:px-8" // Added container for padding
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Available Parking Slots</CardTitle>
-          <CardDescription>
-            Browse available slots and request one for your vehicle.
+      <Card className="bg-card-bg border border-theme-border-default shadow-xl rounded-xl">
+        <CardHeader className="pb-4 border-b border-theme-border-default">
+          <CardTitle className="text-2xl font-semibold text-text-main">Available Parking Slots</CardTitle>
+          <CardDescription className="text-text-muted">
+            Browse available slots and request one for your vehicle. Your balance will be checked.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4">
+        <CardContent className="pt-6">
+          <div className="mb-6"> {/* Consistent margin */}
             <div className="relative">
               <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-text-placeholder"
                 size={18}
               />
               <Input
-                placeholder="Search by Slot Number, Size, Type, Location..."
+                placeholder="Search by Slot #, Size, Type, Location..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-10"
+                className="pl-10 w-full bg-input-bg text-text-main placeholder-text-placeholder border-theme-border-input focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand rounded-lg"
               />
             </div>
           </div>
 
           {slots.length === 0 && !searchQuery ? (
             <EmptyState
-              icon={<ParkingCircle className="h-12 w-12 text-gray-400" />}
+              icon={<ParkingCircle className="h-16 w-16 text-text-placeholder opacity-70" />}
               title="No Available Slots"
-              description="Currently, there are no parking slots available. Please check back later."
+              description="Currently, there are no parking slots available that match your criteria. Please check back later or adjust your search."
             />
           ) : slots.length === 0 && searchQuery ? (
             <EmptyState
-              icon={<ParkingCircle className="h-12 w-12 text-gray-400" />}
+              icon={<ParkingCircle className="h-16 w-16 text-text-placeholder opacity-70" />}
               title="No Slots Found"
-              description="No available parking slots match your search criteria."
+              description="No available parking slots match your search."
             />
           ) : (
             <>
-              <div className="rounded-md border overflow-x-auto">
+              <div className="rounded-lg border border-theme-border-default overflow-x-auto">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-input-bg/50"> {/* Subtle header background */}
                     <TableRow>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("slot_number")}
-                      >
-                        Slot #{" "}
-                        {sortBy === "slot_number" && (
-                          <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
-                          />
-                        )}
+                      <TableHead className="cursor-pointer text-text-main font-semibold" onClick={() => handleSort("slot_number")}>
+                        Slot # {sortBy === "slot_number" && <ArrowUpDown className={`ml-1 h-3.5 w-3.5 ${sortOrder === "desc" ? "rotate-180" : ""}`} />}
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("size")}
-                      >
-                        Size{" "}
-                        {sortBy === "size" && (
-                          <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
-                          />
-                        )}
+                      <TableHead className="cursor-pointer text-text-main font-semibold" onClick={() => handleSort("size")}>
+                        Size {sortBy === "size" && <ArrowUpDown className={`ml-1 h-3.5 w-3.5 ${sortOrder === "desc" ? "rotate-180" : ""}`} />}
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("vehicle_type")}
-                      >
-                        Pref. Type{" "}
-                        {sortBy === "vehicle_type" && (
-                          <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
-                          />
-                        )}
+                      <TableHead className="cursor-pointer text-text-main font-semibold" onClick={() => handleSort("vehicle_type")}>
+                        Pref. Type {sortBy === "vehicle_type" && <ArrowUpDown className={`ml-1 h-3.5 w-3.5 ${sortOrder === "desc" ? "rotate-180" : ""}`} />}
                       </TableHead>
-                      <TableHead
-                        className="cursor-pointer"
-                        onClick={() => handleSort("location")}
-                      >
-                        Location{" "}
-                        {sortBy === "location" && (
-                          <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
-                          />
-                        )}
+                      <TableHead className="cursor-pointer text-text-main font-semibold" onClick={() => handleSort("location")}>
+                        Location {sortBy === "location" && <ArrowUpDown className={`ml-1 h-3.5 w-3.5 ${sortOrder === "desc" ? "rotate-180" : ""}`} />}
                       </TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                      <TableHead className="cursor-pointer text-text-main font-semibold" onClick={() => handleSort("cost_per_hour")}> {/* ADDED SORT FOR COST */}
+                        Cost/Hour {sortBy === "cost_per_hour" && <ArrowUpDown className={`ml-1 h-3.5 w-3.5 ${sortOrder === "desc" ? "rotate-180" : ""}`} />}
+                      </TableHead>
+                      <TableHead className="text-text-main font-semibold">Status</TableHead>
+                      <TableHead className="text-right text-text-main font-semibold">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {slots.map((slot) => (
-                      <TableRow key={slot.id}>
-                        <TableCell className="font-medium">
-                          {slot.slot_number}
+                      <TableRow key={slot.id} className="hover:bg-input-bg/30 transition-colors">
+                        <TableCell className="font-medium text-text-main">{slot.slot_number}</TableCell>
+                        <TableCell className="text-text-muted">{slot.size}</TableCell>
+                        <TableCell className="text-text-muted">{slot.vehicle_type}</TableCell>
+                        <TableCell className="text-text-muted">{slot.location || "N/A"}</TableCell>
+                        <TableCell className="font-semibold text-text-main"> {/* Display Cost */}
+                          {slot.cost_per_hour !== null && slot.cost_per_hour !== undefined
+                            ? `$${parseFloat(slot.cost_per_hour).toFixed(2)}`
+                            : <Badge variant="secondary">Free</Badge>
+                          }
                         </TableCell>
-                        <TableCell>{slot.size}</TableCell>
-                        <TableCell>{slot.vehicle_type}</TableCell>
-                        <TableCell>{slot.location || "N/A"}</TableCell>
                         <TableCell>{getStatusBadge(slot.status)}</TableCell>
                         <TableCell className="text-right">
                           {slot.status === "AVAILABLE" && canRequestSlot && (
                             <Button
                               size="sm"
                               onClick={() => openRequestModal(slot)}
-                              className="bg-brand-yellow/80 hover:bg-brand-yellow/60"
+                              className="bg-brand-yellow hover:bg-brand-yellow-hover text-text-on-brand font-medium py-1.5 px-3 rounded-md shadow-sm hover:shadow-md transition-all"
                             >
-                              <Send className="mr-2 h-4 w-4" />
-                              Request Slot
+                              <Send className="mr-1.5 h-4 w-4" />
+                              Request
                             </Button>
                           )}
                           {slot.status !== "AVAILABLE" && (
-                            <span className="text-xs text-gray-500 italic">
+                            <span className="text-xs text-text-placeholder italic">
                               Not Requestable
                             </span>
                           )}

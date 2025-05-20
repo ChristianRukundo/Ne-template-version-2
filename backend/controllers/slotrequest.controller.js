@@ -1,6 +1,6 @@
 // controllers/slotrequest.controller.js
 const prisma = require("../config/database");
-const { logAction } = require("../utils/logger");
+const { generateParkingTicketPdf } = require("../utils/pdfGenerator");
 const {
   SlotRequestStatus,
   ParkingSlotStatus,
@@ -81,8 +81,7 @@ const createSlotRequest = async (req, res) => {
       // Check if user already has an active (PENDING or APPROVED) request
       const existingActiveRequest = await tx.slotRequest.findFirst({
         where: {
-          user_id: userId, // Check for any active request by the user
-          // OR specifically for this vehicle if that's the rule: vehicle_id: vehicle.id,
+          vehicle_id: vehicle.id,
           status: {
             in: [SlotRequestStatus.PENDING, SlotRequestStatus.APPROVED],
           },
@@ -108,16 +107,7 @@ const createSlotRequest = async (req, res) => {
       return { newRequest, vehicle, parkingSlot }; // Return all for logging
     });
 
-    await logAction({
-      userId: userId,
-      action: `User created slot request for vehicle: ${
-        result.vehicle.plate_number
-      } for slot ${
-        result.parkingSlot.slot_number
-      }. Cost: $${result.newRequest.calculated_cost.toFixed(2)}`,
-      entityType: "SlotRequest",
-      entityId: result.newRequest.id,
-    });
+
 
     res.status(201).json({
       message: "Slot request submitted successfully and is pending approval.",
@@ -315,14 +305,6 @@ const updateMySlotRequest = async (req, res) => {
       include: { vehicle: true },
     });
 
-    await logAction({
-      userId: userId,
-      action: `User updated slot request ID: ${updatedRequest.id} for vehicle ${updatedRequest.vehicle.plate_number}`,
-      entityType: "SlotRequest",
-      entityId: updatedRequest.id,
-      details: { changes: Object.keys(updateData) },
-    });
-
     res.status(200).json({
       message: "Slot request updated successfully.",
       request: updatedRequest,
@@ -340,160 +322,178 @@ const updateMySlotRequest = async (req, res) => {
 const resolveSlotRequest = async (req, res) => {
   try {
     const adminUserId = req.user.user_id;
-    const requestId = req.params.id; // Assuming ID is UUID string
-    const { status, admin_notes, parking_slot_id_manual } = req.body;
+    const requestId = req.params.id;
+    const { status, admin_notes } = req.body;
 
-    // Validate requestId format if necessary (e.g., is it a valid UUID string)
-
-    if (
-      !status ||
-      !Object.values(SlotRequestStatus).includes(status.toUpperCase()) ||
-      ![SlotRequestStatus.APPROVED, SlotRequestStatus.REJECTED].includes(
-        status.toUpperCase()
-      )
-    ) {
-      return res
-        .status(400)
-        .json({ message: "Invalid status. Must be APPROVED or REJECTED." });
+    if (!status || ![SlotRequestStatus.APPROVED, SlotRequestStatus.REJECTED].includes(status.toUpperCase())) {
+      return res.status(400).json({ message: 'Invalid status. Must be APPROVED or REJECTED.' });
     }
 
-    const requestToResolve = await prisma.slotRequest.findUnique({
-      where: { id: requestId },
-      include: { vehicle: true, user: { select: { name: true, email: true } } },
-    });
-
-    if (!requestToResolve) {
-      return res.status(404).json({ message: "Slot request not found." });
-    }
-    if (requestToResolve.status !== SlotRequestStatus.PENDING) {
-      return res.status(400).json({
-        message: `Request already resolved with status: ${requestToResolve.status}.`,
-      });
-    }
-
-    const updateData = {
-      status: status.toUpperCase(),
-      admin_notes: admin_notes || null,
-      resolved_at: new Date(),
-    };
-    let assignedSlotDetails = null; // For logging and email
-
-    if (status.toUpperCase() === SlotRequestStatus.APPROVED) {
-      if (!parking_slot_id_manual) {
-        return res.status(400).json({
-          message: "Parking slot ID is required for approving a request.",
-        });
-      }
-
-      const selectedSlot = await prisma.parkingSlot.findUnique({
-        where: { id: parking_slot_id_manual },
+    const updatedRequest = await prisma.$transaction(async (tx) => {
+      const requestToResolve = await tx.slotRequest.findUnique({
+        where: { id: requestId },
+        include: {
+          user: { select: { id: true, name: true, email: true, balance: true } },
+          vehicle: true,
+          parking_slot: true,
+        },
       });
 
-      if (!selectedSlot) {
-        return res.status(404).json({
-          message: `Selected parking slot ID ${parking_slot_id_manual} not found.`,
-        });
+      if (!requestToResolve) throw new Error('Slot request not found.');
+      if (requestToResolve.status !== SlotRequestStatus.PENDING) {
+        throw new Error(`Request already resolved with status: ${requestToResolve.status}.`);
       }
-      if (selectedSlot.status !== ParkingSlotStatus.AVAILABLE) {
-        // Check if it's already assigned to THIS request (e.g., re-approving after an issue, though unlikely flow)
-        if (selectedSlot.id !== requestToResolve.parking_slot_id) {
-          return res.status(400).json({
-            message: `Selected slot ${selectedSlot.slot_number} is not available. Current status: ${selectedSlot.status}.`,
-          });
+      if (!requestToResolve.parking_slot) { // This means the user didn't select a specific slot during request
+        if (status.toUpperCase() === SlotRequestStatus.APPROVED) {
+          // This case should ideally not happen if your UI forces slot selection before request
+          // or if admin is forced to assign one here.
+          // For now, if admin approves without a pre-selected slot from user, this is an issue.
+          // The simplified flow was that admin *doesn't* assign, user *selects*.
+          throw new Error('Cannot approve: No parking slot was associated with this request during creation.');
         }
       }
-      // Optional: Basic compatibility check (admin override implied)
-      if (
-        selectedSlot.size !== requestToResolve.vehicle.size ||
-        selectedSlot.vehicle_type !== requestToResolve.vehicle.vehicle_type
-      ) {
-        console.warn(
-          `Admin is assigning slot ${selectedSlot.slot_number} (${selectedSlot.size}/${selectedSlot.vehicle_type}) to vehicle ${requestToResolve.vehicle.plate_number} (${requestToResolve.vehicle.size}/${requestToResolve.vehicle.vehicle_type}) with potential incompatibility.`
-        );
-        // You could add a specific warning in admin_notes or require admin confirmation for override on frontend
-      }
 
-      updateData.parking_slot_id = selectedSlot.id;
-      assignedSlotDetails = selectedSlot; // For logging and email
-    } else {
-      // REJECTED
-      updateData.parking_slot_id = null; // Ensure no slot is linked if rejecting
-    }
 
-    // Perform updates in a transaction
-    const updatedRequest = await prisma.$transaction(async (tx) => {
-      const finalUpdatedRequest = await tx.slotRequest.update({
-        where: { id: requestId },
-        data: updateData,
-        include: { vehicle: true, user: true, parking_slot: true }, // Include for email
-      });
+      const updateDataForRequest = {
+        status: status.toUpperCase(),
+        admin_notes: admin_notes || null,
+        resolved_at: new Date(),
+      };
 
-      if (
-        finalUpdatedRequest.status === SlotRequestStatus.APPROVED &&
-        finalUpdatedRequest.parking_slot_id
-      ) {
+      if (status.toUpperCase() === SlotRequestStatus.APPROVED) {
+        if (!requestToResolve.calculated_cost) throw new Error("Calculated cost missing. Cannot approve.");
+        if (!requestToResolve.parking_slot_id) throw new Error("Parking slot ID missing from request. Cannot approve."); // Should be set by user
+
+        const costToDeduct = new Prisma.Decimal(requestToResolve.calculated_cost);
+        const currentUserBalance = new Prisma.Decimal(requestToResolve.user.balance);
+
+        if (currentUserBalance.lt(costToDeduct)) {
+          const balanceError = new Error(`Cannot approve: User's balance ($${currentUserBalance.toFixed(2)}) is less than cost ($${costToDeduct.toFixed(2)}).`);
+          balanceError.statusCode = 400;
+          throw balanceError;
+        }
+
+        await tx.user.update({
+          where: { id: requestToResolve.user_id },
+          data: { balance: currentUserBalance.sub(costToDeduct) },
+        });
         await tx.parkingSlot.update({
-          where: { id: finalUpdatedRequest.parking_slot_id },
+          where: { id: requestToResolve.parking_slot_id }, // Update the slot user requested
           data: { status: ParkingSlotStatus.UNAVAILABLE },
         });
-      }
-      // If request was previously approved and is now rejected, make the old slot available again
-      else if (
-        finalUpdatedRequest.status === SlotRequestStatus.REJECTED &&
-        requestToResolve.parking_slot_id
-      ) {
-        await tx.parkingSlot.update({
-          where: { id: requestToResolve.parking_slot_id }, // The slot previously assigned to this request
-          data: { status: ParkingSlotStatus.AVAILABLE },
-        });
+      } else if (status.toUpperCase() === SlotRequestStatus.REJECTED) {
+        // If rejecting a request that had a slot associated (and was PENDING),
+        // that slot remains AVAILABLE (no change needed to slot status itself, as it was never made UNAVAILABLE for this request).
       }
 
-      return finalUpdatedRequest;
+
+      return tx.slotRequest.update({
+        where: { id: requestId },
+        data: updateDataForRequest,
+        include: { user: true, vehicle: true, parking_slot: true }, // For email and response
+      });
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin ${updatedRequest.status.toLowerCase()} slot request ID: ${
-        updatedRequest.id
-      } for vehicle ${updatedRequest.vehicle.plate_number}. ${
-        updatedRequest.status === SlotRequestStatus.APPROVED
-          ? `Assigned slot: ${updatedRequest.parking_slot?.slot_number}`
-          : "No slot assigned."
-      }`,
-      entityType: "SlotRequest",
-      entityId: updatedRequest.id,
-    });
 
-    if (
-      updatedRequest.status === SlotRequestStatus.APPROVED &&
-      updatedRequest.parking_slot
-    ) {
-      const htmlEmail = renderEmailTemplate("slotApprovalEmail", {
+    if (updatedRequest.status === SlotRequestStatus.APPROVED && updatedRequest.parking_slot) {
+      // const ticketDownloadLink = `${process.env.BACKEND_URL || req.protocol + '://' + req.get('host')}/api/v1/slot-requests/${updatedRequest.id}/ticket/download`;
+
+      const ticketDownloadLink = `${process.env.FRONTEND_URL}/view-ticket?requestId=${updatedRequest.id}`;
+
+      // Ensure all placeholders from the HTML template are present here
+      const emailData = {
         userName: updatedRequest.user.name,
         vehiclePlateNumber: updatedRequest.vehicle.plate_number,
-        vehicleType: updatedRequest.vehicle.vehicle_type,
+        vehicleType: updatedRequest.vehicle.vehicle_type, // CORRECTED
         slotNumber: updatedRequest.parking_slot.slot_number,
-        slotLocation: updatedRequest.parking_slot.location || "N/A",
-        slotSize: updatedRequest.parking_slot.size,
-        approvalDate: new Date(updatedRequest.resolved_at).toLocaleDateString(),
-      });
+        slotLocation: updatedRequest.parking_slot.location || 'N/A', // CORRECTED
+        slotSize: updatedRequest.parking_slot.size,                 // CORRECTED
+        approvalDate: updatedRequest.resolved_at ? new Date(updatedRequest.resolved_at).toLocaleDateString() : 'N/A', // CORRECTED
+        totalCost: updatedRequest.calculated_cost.toFixed(2),
+        expectedDuration: updatedRequest.expected_duration_hours, // CORRECTED key name
+        ticketLink: ticketDownloadLink,
+        // year: new Date().getFullYear() // renderEmailTemplate might add this automatically
+      };
+
+      const htmlEmail = renderEmailTemplate('slotApprovalEmail', emailData); // Assuming 'slotApprovalEmail.html' is your correct template
+
       if (htmlEmail) {
         await sendEmail(
           updatedRequest.user.email,
-          "Your Parking Slot Request Approved!",
-          `Your request for vehicle ${updatedRequest.vehicle.plate_number} has been approved. Slot: ${updatedRequest.parking_slot.slot_number}.`,
+          'ParkWell: Your Parking Slot Request Approved!', // More specific subject
+          `Dear ${emailData.userName},\n\nYour parking request for vehicle ${emailData.vehiclePlateNumber} has been approved.\nSlot: ${emailData.slotNumber}\nDuration: ${emailData.expectedDuration} hours\nCost: $${emailData.totalCost} (deducted from balance).\nDownload Ticket: ${emailData.ticketLink}\n\nThank you,\nThe ParkWell Team`,
           htmlEmail
         );
+      } else {
+        console.error("Failed to render slot approval email template for request ID:", updatedRequest.id);
+        // Potentially send a plain text fallback if HTML fails catastrophically
       }
     }
+    // TODO: Optionally send a rejection email if status is REJECTED
 
-    res.status(200).json({
-      message: `Slot request ${updatedRequest.status.toLowerCase()} successfully.`,
-      request: updatedRequest,
-    });
+    res.status(200).json({ message: `Slot request ${updatedRequest.status.toLowerCase()} successfully.`, request: updatedRequest });
   } catch (error) {
-    console.error("Resolve slot request error:", error);
-    res.status(500).json({ message: "Server error resolving slot request" });
+    console.error('Resolve slot request error:', error);
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ message: error.message || 'Server error resolving slot request' });
+  }
+};
+
+
+/**
+ * (User/Admin) Download the parking ticket PDF for an approved slot request.
+ */
+const downloadTicketPdf = async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    const requestingUserId = req.user.user_id;
+    const isAdmin = req.user.role_name === RoleName.ADMIN;
+
+    const slotRequest = await prisma.slotRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        vehicle: true,
+        parking_slot: true,
+      },
+    });
+
+    if (!slotRequest) {
+      return res.status(404).json({ message: 'Slot request not found.' });
+    }
+
+    // Authorization: Only owner or admin can download
+    if (slotRequest.user_id !== requestingUserId && !isAdmin) {
+      return res.status(403).json({ message: 'Forbidden: You are not authorized to download this ticket.' });
+    }
+
+    if (slotRequest.status !== SlotRequestStatus.APPROVED || !slotRequest.parking_slot) {
+      return res.status(400).json({ message: 'Ticket can only be generated for approved and assigned requests.' });
+    }
+
+    const ticketData = {
+      user: slotRequest.user,
+      vehicle: slotRequest.vehicle,
+      parkingSlot: slotRequest.parking_slot,
+      slotRequest: {
+        id: slotRequest.id,
+        expected_duration_hours: slotRequest.expected_duration_hours,
+        calculated_cost: slotRequest.calculated_cost,
+        requested_at: slotRequest.requested_at,
+        resolved_at: slotRequest.resolved_at,
+      },
+      appName: "ParkWell Systems" // Or from config
+    };
+
+    const pdfBuffer = await generateParkingTicketPdf(ticketData);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="parking-ticket-${slotRequest.id.substring(0, 8)}.pdf"`);
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Download ticket PDF error:', error);
+    res.status(500).json({ message: 'Failed to generate or download ticket PDF.' });
   }
 };
 
@@ -502,4 +502,5 @@ module.exports = {
   listSlotRequests,
   updateMySlotRequest, // For user to cancel or change vehicle on PENDING request
   resolveSlotRequest, // For admin to approve/reject
+  downloadTicketPdf, // For user to download the ticket PDF
 };

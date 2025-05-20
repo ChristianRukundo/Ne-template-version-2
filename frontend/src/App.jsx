@@ -35,6 +35,8 @@ import { AdminParkingSlotsPage } from "./pages/admin/parking-slot";
 import { AvailableSlotsPage } from "./pages/available-slots";
 import { AdminSlotRequestsPage } from "./pages/admin/admin-slot-requests-page";
 import { HomePage } from "./pages/home-page";
+import { GenerateParkingTicketPage } from "./pages/admin/GenerateParkingTicketPage"
+import { ViewTicketPage } from './pages/view-ticket-page';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -60,6 +62,7 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/view-ticket" element={<ViewTicketPage />} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
@@ -87,6 +90,7 @@ export default function App() {
                   element={<AdminSlotRequestsPage />}
                 />
 
+
                 {/* Transaction Routes */}
 
                 <Route
@@ -101,6 +105,7 @@ export default function App() {
                 <Route path="admin">
                   {/* <Route path="users" element={<AdminUsersPage />} /> */}
                   <Route path="users" element={<UserManagement />} />
+                  <Route path="generate-ticket" element={<GenerateParkingTicketPage />} />
                   <Route path="users/new" element={<AdminUserFormPage isEdit={false} />} />
                   <Route
                     path="users/:id/edit"

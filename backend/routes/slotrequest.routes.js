@@ -40,4 +40,10 @@ router.patch(
   slotRequestController.resolveSlotRequest
 );
 
+//  Ticket Download Route(accessible by owner of the request or an admin)
+router.get('/:id/ticket/download',
+  checkAnyPermission(['manage_own_slot_requests', 'manage_all_slot_requests', 'list_own_slot_requests']), // User should have at least one of these
+  slotRequestController.downloadTicketPdf
+);
+
 module.exports = router;

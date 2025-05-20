@@ -68,6 +68,20 @@ export const adminGetAllSlotRequests = async (params = {}) => {
 };
 
 /**
+ * Gets details of a specific slot request by its ID.
+ * Assumes the backend route is something like GET /api/slot-requests/{requestId}
+ * or that your list endpoint can filter by a single ID.
+ * @param {string} requestId - The UUID of the slot request.
+ */
+export const getSlotRequestDetailsById = async (requestId) => {
+
+
+  // If your backend has GET /api/slot-requests/:id
+  const response = await api.get(`/slot-requests/${requestId}`); // Assuming this endpoint exists
+  return response.data; // Expects a single slot request object
+};
+
+/**
  * (Admin) Approves or rejects a slot request.
  * @param {string} requestId - The UUID of the slot request.
  * @param {object} resolveData - Object like { status: "APPROVED" | "REJECTED", admin_notes?: "...", parking_slot_id_manual?: "uuid_of_slot_if_manual_assignment" }
@@ -80,4 +94,59 @@ export const adminResolveSlotRequest = async (requestId, resolveData) => {
     resolveData
   );
   return response.data;
+};
+
+// THIS IS THE FUNCTION THAT NEEDS TO BE EXPORTED
+export const downloadTicketApiCall = async (requestId, token) => {
+  try {
+    const response = await fetch(`${API_URL}/slot-requests/${requestId}/ticket/download`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Error ${response.status}: Failed to download ticket.`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        errorMessage = response.statusText || errorMessage;
+      }
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
+    }
+
+    const blob = await response.blob();
+    if (blob.type !== 'application/pdf') {
+      console.error("Received content is not a PDF:", blob.type);
+      throw new Error("The downloaded file is not a valid PDF.");
+    }
+
+    const filenameHeader = response.headers.get('content-disposition');
+    let filename = `parking-ticket-${requestId.substring(0, 8)}.pdf`;
+    if (filenameHeader) {
+      const parts = filenameHeader.split('filename=');
+      if (parts.length > 1) {
+        filename = parts[1].replace(/"/g, '').trim();
+      }
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    return { success: true, filename: filename };
+
+  } catch (error) {
+    console.error("API Call - Download ticket error:", error);
+    throw error;
+  }
 };

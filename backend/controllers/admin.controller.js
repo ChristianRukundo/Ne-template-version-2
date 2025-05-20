@@ -4,7 +4,7 @@ const bcrypt = require("bcrypt");
 const { generateVerificationCode } = require("../utils/helpers"); // For email verification if admin creates user
 const { sendEmail } = require("../config/email");
 const { renderEmailTemplate } = require("../utils/renderEmailTemplate");
-const { logAction } = require("../utils/logger");
+
 const { RoleName } = require("@prisma/client"); // To access RoleName.USER etc.
 
 /**
@@ -205,12 +205,7 @@ const createUser = async (req, res) => {
     //   );
     // }
 
-    await logAction({
-      userId: req.user.user_id, // ID of the admin performing the action
-      action: `Admin created user: ${newUser.email} (ID: ${newUser.id}) with role ${newUser.role.name}`,
-      entityType: "User",
-      entityId: newUser.id,
-    });
+
 
     res.status(201).json({
       message: "User created successfully by admin. Verification email sent.",
@@ -327,14 +322,6 @@ const updateUser = async (req, res) => {
       },
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin updated user: ${updatedUser.email} (ID: ${updatedUser.id})`,
-      entityType: "User",
-      entityId: updatedUser.id,
-      details: { changes: Object.keys(updateData) },
-    });
-
     res.status(200).json({
       message: "User updated successfully by admin",
       user: updatedUser,
@@ -383,12 +370,7 @@ const deleteUser = async (req, res) => {
       where: { id: userIdToDelete },
     });
 
-    await logAction({
-      userId: adminUserId,
-      action: `Admin deleted user: ${userToDelete.email} (ID: ${userToDelete.id})`,
-      entityType: "User",
-      entityId: userIdToDelete, // Log the ID of the deleted user
-    });
+  
 
     res.status(200).json({ message: "User deleted successfully by admin" });
   } catch (error) {

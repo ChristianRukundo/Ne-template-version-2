@@ -1,13 +1,15 @@
+"use client"; // Or remove if not using Next.js App Router
+
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "react-hot-toast";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { ParkingCircle } from "lucide-react";
+import { ParkingCircle, DollarSign } from "lucide-react"; // Added DollarSign
 import {
   adminCreateParkingSlot,
   adminUpdateParkingSlot,
-} from "../../api/parking-slot"; // Adjust path
+} from "../../api/parking-slot"; // Ensure this path is correct and functions exist
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
@@ -28,21 +30,13 @@ import {
 } from "../ui/select";
 import { Loader } from "../ui/loader";
 
-// Enum values from your backend schema (important to keep in sync)
-// These should ideally be shared from a constants file or fetched if dynamic
+// Enum values from your backend schema
 const VEHICLE_TYPES = ["CAR", "MOTORCYCLE", "TRUCK", "BICYCLE"];
 const VEHICLE_SIZES = ["SMALL", "MEDIUM", "LARGE", "EXTRA_LARGE"];
-const SLOT_LOCATIONS = [
-  "NORTH_WING",
-  "SOUTH_WING",
-  "EAST_WING",
-  "WEST_WING",
-  "LEVEL_1",
-  "LEVEL_2",
-];
+const SLOT_LOCATIONS = ["NORTH_WING", "SOUTH_WING", "EAST_WING", "WEST_WING", "LEVEL_1", "LEVEL_2"];
 const PARKING_SLOT_STATUSES = ["AVAILABLE", "UNAVAILABLE", "MAINTENANCE"];
 
-// Validation schema for Parking Slot
+// Validation schema for Parking Slot (with cost_per_hour)
 const parkingSlotSchema = z.object({
   slot_number: z
     .string()
@@ -53,18 +47,20 @@ const parkingSlotSchema = z.object({
   vehicle_type: z.enum(VEHICLE_TYPES, {
     required_error: "Preferred vehicle type is required.",
   }),
-  location: z.enum(SLOT_LOCATIONS).optional().nullable().or(z.literal("")), // Allow empty string for "None"
+  location: z.enum(SLOT_LOCATIONS).optional().nullable().or(z.literal("")),
   status: z.enum(PARKING_SLOT_STATUSES, {
     required_error: "Status is required.",
   }),
+  cost_per_hour: z.preprocess( // Preprocess to convert empty string or string to number
+    (val) => (val === "" || val === null || val === undefined ? null : parseFloat(String(val))),
+    z.number({ invalid_type_error: "Cost must be a number." })
+      .min(0, "Cost cannot be negative.")
+      .max(1000, "Cost seems too high (max 1000).") // Example max
+      .nullable() // Allow null if some slots can be free/unpriced via null
+  ),
 });
 
-export const ParkingSlotForm = ({
-  isOpen,
-  onClose,
-  onSuccess,
-  initialData,
-}) => {
+export const ParkingSlotForm = ({ isOpen, onClose, onSuccess, initialData }) => {
   const queryClient = useQueryClient();
   const isEditMode = !!initialData;
 
@@ -72,29 +68,26 @@ export const ParkingSlotForm = ({
     slot_number: "",
     size: "",
     vehicle_type: "",
-    location: "", // Represent "None" or empty with ""
+    location: "",
     status: "AVAILABLE",
+    cost_per_hour: "", // Initialize as empty string for input field
   });
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (isOpen) {
-      // Reset form when it opens or initialData changes
       if (isEditMode && initialData) {
         setFormData({
           slot_number: initialData.slot_number || "",
           size: initialData.size || "",
           vehicle_type: initialData.vehicle_type || "",
-          location: initialData.location || "", // Handles null from DB
+          location: initialData.location || "",
           status: initialData.status || "AVAILABLE",
+          cost_per_hour: initialData.cost_per_hour !== null && initialData.cost_per_hour !== undefined ? String(initialData.cost_per_hour) : "", // Convert Decimal/number to string for input
         });
       } else {
         setFormData({
-          slot_number: "",
-          size: "",
-          vehicle_type: "",
-          location: "",
-          status: "AVAILABLE",
+          slot_number: "", size: "", vehicle_type: "", location: "", status: "AVAILABLE", cost_per_hour: "",
         });
       }
       setErrors({});
@@ -103,26 +96,18 @@ export const ParkingSlotForm = ({
 
   const mutationOptions = {
     onSuccess: () => {
-      toast.success(
-        `Parking slot ${isEditMode ? "updated" : "created"} successfully!`
-      );
-       queryClient.invalidateQueries("availableParkingSlots");
-        queryClient.invalidateQueries("admin-parkingSlots");
-      onSuccess(); // Prop function to refetch list and close modal
+      toast.success(`Parking slot ${isEditMode ? "updated" : "created"} successfully!`);
+      queryClient.invalidateQueries("admin-parkingSlots"); // Used in AdminSlotManagementPage
+      queryClient.invalidateQueries("availableParkingSlots"); // Used in AvailableSlotsPage
+      onSuccess();
     },
     onError: (error) => {
-      toast.error(
-        error.response?.data?.message ||
-          `Failed to ${isEditMode ? "update" : "create"} parking slot.`
-      );
+      toast.error(error.response?.data?.message || `Failed to ${isEditMode ? "update" : "create"} parking slot.`);
     },
   };
 
   const createMutation = useMutation(adminCreateParkingSlot, mutationOptions);
-  const updateMutation = useMutation(
-    (data) => adminUpdateParkingSlot(initialData.id, data),
-    mutationOptions
-  );
+  const updateMutation = useMutation((data) => adminUpdateParkingSlot(initialData.id, data), mutationOptions);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -131,7 +116,7 @@ export const ParkingSlotForm = ({
   };
 
   const handleSelectChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value === "NONE" ? "" : value })); // Handle "None" for optional location
+    setFormData((prev) => ({ ...prev, [name]: value === "NONE" ? "" : value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
@@ -139,26 +124,33 @@ export const ParkingSlotForm = ({
     e.preventDefault();
     setErrors({});
 
-    const dataToSubmit = {
+    // Prepare data for Zod parsing, ensuring cost_per_hour is correctly formatted for number conversion
+    const dataToValidate = {
       ...formData,
-      slot_number: formData.slot_number.toUpperCase().trim(),
-      // Prisma expects null for optional empty relations, not empty string
       location: formData.location === "" ? null : formData.location,
+      // cost_per_hour will be handled by Zod's preprocess
     };
 
     try {
-      const parsedData = parkingSlotSchema.parse(dataToSubmit);
+      const parsedData = parkingSlotSchema.parse(dataToValidate);
+      // parsedData.cost_per_hour will be a number or null after Zod processing
+
+      const finalPayload = {
+        ...parsedData,
+        slot_number: parsedData.slot_number.toUpperCase().trim(),
+        // cost_per_hour in parsedData is already in the correct format (number or null) for Prisma
+      };
+
+
       if (isEditMode) {
-        updateMutation.mutate(parsedData);
+        updateMutation.mutate(finalPayload);
       } else {
-        createMutation.mutate(parsedData);
+        createMutation.mutate(finalPayload);
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors = {};
-        error.errors.forEach((err) => {
-          newErrors[err.path[0]] = err.message;
-        });
+        error.errors.forEach((err) => { newErrors[err.path[0]] = err.message; });
         setErrors(newErrors);
         toast.error("Please correct the form errors.");
       } else {
@@ -170,182 +162,114 @@ export const ParkingSlotForm = ({
 
   if (!isOpen) return null;
 
-  const isLoadingMutation =
-    createMutation.isLoading || updateMutation.isLoading;
+  const isLoadingMutation = createMutation.isLoading || updateMutation.isLoading;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[525px]">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
+      <DialogContent className="sm:max-w-lg"> {/* Slightly wider for the new field */}
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
           <DialogHeader>
             <DialogTitle className="flex items-center">
-              <ParkingCircle className="mr-2 h-6 w-6 text-blue-600" />
+              <ParkingCircle className="mr-2 h-6 w-6 text-brand-yellow" /> {/* Themed icon */}
               {isEditMode ? "Edit Parking Slot" : "Add New Parking Slot"}
             </DialogTitle>
             <DialogDescription>
-              {isEditMode
-                ? "Update the details of the parking slot."
-                : "Fill in the details to create a new parking slot."}
+              {isEditMode ? "Update the details of the parking slot." : "Fill in the details to create a new parking slot."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
               <div>
-                <Label htmlFor="slot_number">Slot Number *</Label>
-                <Input
-                  id="slot_number"
-                  name="slot_number"
-                  value={formData.slot_number}
-                  onChange={handleChange}
-                  className={`mt-1 ${
-                    errors.slot_number ? "border-red-500" : ""
-                  }`}
+                <Label htmlFor="slot_number" className="text-xs font-semibold text-text-main tracking-wide uppercase">Slot Number *</Label>
+                <Input id="slot_number" name="slot_number" value={formData.slot_number} onChange={handleChange}
+                  className={`mt-1 bg-input-bg text-text-main placeholder-text-placeholder focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.slot_number ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}
                   placeholder="e.g., A101"
                 />
-                {errors.slot_number && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.slot_number}
-                  </p>
-                )}
+                {errors.slot_number && <p className="text-xs text-destructive mt-1">{errors.slot_number}</p>}
               </div>
+
+              {/* Cost Per Hour Field */}
+              <div>
+                <Label htmlFor="cost_per_hour" className="text-xs font-semibold text-text-main tracking-wide uppercase">Cost Per Hour (e.g., 2.50)</Label>
+                <div className="relative mt-1">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <DollarSign className="h-4 w-4 text-text-placeholder" />
+                  </div>
+                  <Input
+                    id="cost_per_hour"
+                    name="cost_per_hour"
+                    type="number"
+                    value={formData.cost_per_hour}
+                    onChange={handleChange}
+                    className={`pl-9 bg-input-bg text-text-main placeholder-text-placeholder focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.cost_per_hour ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}
+                    placeholder="0.00 (leave blank if free/unpriced)"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                {errors.cost_per_hour && <p className="text-xs text-destructive mt-1">{errors.cost_per_hour}</p>}
+                <p className="text-xs text-text-muted mt-1">Leave blank or set to 0 for free slots. Backend expects null or a number.</p>
+              </div>
+
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="size">Size *</Label>
-                  <Select
-                    name="size"
-                    value={formData.size}
-                    onValueChange={(value) => handleSelectChange("size", value)}
-                  >
-                    <SelectTrigger
-                      className={`mt-1 w-full ${
-                        errors.size ? "border-red-500" : ""
-                      }`}
-                    >
+                  <Label htmlFor="size" className="text-xs font-semibold text-text-main tracking-wide uppercase">Size *</Label>
+                  <Select name="size" value={formData.size} onValueChange={(value) => handleSelectChange("size", value)}>
+                    <SelectTrigger className={`mt-1 w-full bg-input-bg text-text-main focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.size ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}>
                       <SelectValue placeholder="Select size" />
                     </SelectTrigger>
                     <SelectContent>
-                      {VEHICLE_SIZES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.charAt(0) + s.slice(1).toLowerCase()}
-                        </SelectItem>
-                      ))}
+                      {VEHICLE_SIZES.map(s => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {errors.size && (
-                    <p className="text-sm text-red-500 mt-1">{errors.size}</p>
-                  )}
+                  {errors.size && <p className="text-xs text-destructive mt-1">{errors.size}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="vehicle_type">Preferred Vehicle Type *</Label>
-                  <Select
-                    name="vehicle_type"
-                    value={formData.vehicle_type}
-                    onValueChange={(value) =>
-                      handleSelectChange("vehicle_type", value)
-                    }
-                  >
-                    <SelectTrigger
-                      className={`mt-1 w-full ${
-                        errors.vehicle_type ? "border-red-500" : ""
-                      }`}
-                    >
+                  <Label htmlFor="vehicle_type" className="text-xs font-semibold text-text-main tracking-wide uppercase">Preferred Type *</Label>
+                  <Select name="vehicle_type" value={formData.vehicle_type} onValueChange={(value) => handleSelectChange("vehicle_type", value)}>
+                    <SelectTrigger className={`mt-1 w-full bg-input-bg text-text-main focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.vehicle_type ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}>
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {VEHICLE_TYPES.map((vt) => (
-                        <SelectItem key={vt} value={vt}>
-                          {vt.charAt(0) + vt.slice(1).toLowerCase()}
-                        </SelectItem>
-                      ))}
+                      {VEHICLE_TYPES.map(vt => <SelectItem key={vt} value={vt}>{vt.charAt(0) + vt.slice(1).toLowerCase()}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  {errors.vehicle_type && (
-                    <p className="text-sm text-red-500 mt-1">
-                      {errors.vehicle_type}
-                    </p>
-                  )}
+                  {errors.vehicle_type && <p className="text-xs text-destructive mt-1">{errors.vehicle_type}</p>}
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="location">Location</Label>
-                <Select
-                  name="location"
-                  value={formData.location}
-                  onValueChange={(value) =>
-                    handleSelectChange("location", value)
-                  }
-                >
-                  <SelectTrigger
-                    className={`mt-1 w-full ${
-                      errors.location ? "border-red-500" : ""
-                    }`}
-                  >
-                    <SelectValue placeholder="Select location (optional)" />
+                <Label htmlFor="location" className="text-xs font-semibold text-text-main tracking-wide uppercase">Location (Optional)</Label>
+                <Select name="location" value={formData.location} onValueChange={(value) => handleSelectChange("location", value)}>
+                  <SelectTrigger className={`mt-1 w-full bg-input-bg text-text-main focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.location ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}>
+                    <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NONE">None</SelectItem>{" "}
-                    {/* Explicit "None" option */}
-                    {SLOT_LOCATIONS.map((loc) => (
-                      <SelectItem key={loc} value={loc}>
-                        {loc.replace("_", " ")}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="NONE">None</SelectItem>
+                    {SLOT_LOCATIONS.map(loc => <SelectItem key={loc} value={loc}>{loc.replace(/_/g, " ")}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {errors.location && (
-                  <p className="text-sm text-red-500 mt-1">{errors.location}</p>
-                )}
+                {errors.location && <p className="text-xs text-destructive mt-1">{errors.location}</p>}
               </div>
 
               <div>
-                <Label htmlFor="status">Status *</Label>
-                <Select
-                  name="status"
-                  value={formData.status}
-                  onValueChange={(value) => handleSelectChange("status", value)}
-                >
-                  <SelectTrigger
-                    className={`mt-1 w-full ${
-                      errors.status ? "border-red-500" : ""
-                    }`}
-                  >
+                <Label htmlFor="status" className="text-xs font-semibold text-text-main tracking-wide uppercase">Status *</Label>
+                <Select name="status" value={formData.status} onValueChange={(value) => handleSelectChange("status", value)}>
+                  <SelectTrigger className={`mt-1 w-full bg-input-bg text-text-main focus:bg-card-bg focus:ring-2 focus:ring-focus-brand focus:border-focus-brand ${errors.status ? "border-destructive ring-1 ring-destructive/30" : "border-theme-border-input"}`}>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PARKING_SLOT_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s.charAt(0) + s.slice(1).toLowerCase()}
-                      </SelectItem>
-                    ))}
+                    {PARKING_SLOT_STATUSES.map(s => <SelectItem key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {errors.status && (
-                  <p className="text-sm text-red-500 mt-1">{errors.status}</p>
-                )}
+                {errors.status && <p className="text-xs text-destructive mt-1">{errors.status}</p>}
               </div>
             </div>
-            <DialogFooter className="pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={isLoadingMutation}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isLoadingMutation}
-                className="bg-brand-yellow/80 hover:bg-brand-yellow/60"
-              >
-                {isLoadingMutation && (
-                  <Loader className="mr-2 h-4 w-4 animate-spin" />
-                )}
+            <DialogFooter className="pt-6">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoadingMutation}>Cancel</Button>
+              <Button type="submit" disabled={isLoadingMutation} className="bg-brand-yellow hover:bg-brand-yellow-hover text-text-on-brand font-semibold">
+                {isLoadingMutation && <Loader size="sm" className="mr-2" colorClassName="border-text-on-brand" />}
                 {isEditMode ? "Update Slot" : "Create Slot"}
               </Button>
             </DialogFooter>
