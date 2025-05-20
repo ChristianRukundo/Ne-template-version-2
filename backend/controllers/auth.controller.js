@@ -1,379 +1,302 @@
 // controllers/auth.controller.js
-const bcrypt = require("bcrypt");
-const prisma = require("../config/database");
-const { generateToken } = require("../config/auth"); // Simplified import
-const { sendEmail } = require("../config/email");
-const {
-  generateVerificationCode,
-  generateRandomToken,
-} = require("../utils/helpers");
-const { RoleName } = require("@prisma/client");
-const { renderEmailTemplate } = require("../utils/renderEmailTemplate");
+const bcrypt = require('bcrypt');
+const prisma = require('../config/database');
+const { generateToken } = require('../config/auth'); // Using our simplified token generation
+const { sendEmail } = require('../config/email');
+const { generateVerificationCode } = require('../utils/helpers'); // For OTPs
+const { renderEmailTemplate } = require('../utils/renderEmailTemplate');
+const { RoleName } = require('@prisma/client'); // To access RoleName.PARKING_ATTENDANT etc.
 
 /**
- * Registers a new user.
+ * Registers a new staff user (Attendant or potentially Admin by another Admin).
+ * This function might be called by an Admin creating other staff, or if you implement self-registration for staff.
+ * Defaults to PARKING_ATTENDANT role if roleName is not specified by an Admin.
+ * New users will be email_verified: false by default (as per schema).
  */
-const register = async (req, res) => {
+const registerStaff = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    // Admin creating staff might provide roleName. If self-registration, default or fixed role.
+    const { firstName, lastName, email, password, roleName } = req.body;
 
+    // --- Basic Validation (enhance with production rules from previous discussion) ---
     const validationErrors = [];
-    if (!name || name.trim().length === 0)
-      validationErrors.push("Name is required.");
+    if (!firstName || firstName.trim().length === 0) validationErrors.push("First name is required.");
+    if (!lastName || lastName.trim().length === 0) validationErrors.push("Last name is required.");
     if (!email) validationErrors.push("Email is required.");
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      validationErrors.push("Invalid email format.");
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) validationErrors.push("Invalid email format."); // Simple regex
     if (!password) validationErrors.push("Password is required.");
-    else if (password.length < 6)
-      validationErrors.push("Password must be at least 6 characters long.");
+    else if (password.length < 8) validationErrors.push("Password must be at least 8 characters."); // Adjust as needed
 
     if (validationErrors.length > 0) {
-      return res
-        .status(400)
-        .json({ message: "Validation failed", errors: validationErrors });
+      return res.status(400).json({ message: "Validation failed", errors: validationErrors });
     }
+    // --- End Validation ---
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: "Email already in use" });
+      return res.status(400).json({ message: 'Email already in use by another staff member.' });
     }
+
+    let targetRoleId = null;
+    // Determine role: If an Admin is creating this user, they might specify roleName.
+    // For a generic staff registration, you might default to PARKING_ATTENDANT.
+    if (roleName) {
+      const roleEnumKey = Object.keys(RoleName).find(key => RoleName[key] === roleName.toUpperCase());
+      if (!roleEnumKey) {
+        return res.status(400).json({ message: `Invalid role specified: ${roleName}.` });
+      }
+      const role = await prisma.role.findUnique({ where: { name: RoleName[roleEnumKey] } });
+      if (!role) return res.status(400).json({ message: `Role '${roleName}' not found.` });
+      targetRoleId = role.id;
+    } else {
+      // Default to PARKING_ATTENDANT if no roleName is provided (e.g., for a general staff sign-up)
+      const defaultRole = await prisma.role.findUnique({ where: { name: RoleName.PARKING_ATTENDANT } });
+      if (!defaultRole) return res.status(500).json({ message: "Default staff role not configured." });
+      targetRoleId = defaultRole.id;
+    }
+
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const verificationCode = generateVerificationCode();
 
-    const userRole = await prisma.role.findUnique({
-      where: { name: RoleName.USER },
-    });
-    if (!userRole) {
-      console.error("USER role not found in database. Please run seed script.");
-      return res
-        .status(500)
-        .json({ message: "Server configuration error: User role missing." });
-    }
-
     const newUser = await prisma.user.create({
       data: {
-        name,
+        firstName,
+        lastName,
         email,
         password: hashedPassword,
-        role_id: userRole.id,
+        role_id: targetRoleId,
+        email_verified: false, // New staff accounts need verification
         email_verification_code: verificationCode,
-        balance: 100, // Default balance
       },
     });
 
-    const htmlEmail = renderEmailTemplate("verificationEmail", {
-      name: newUser.name,
+    const htmlEmail = renderEmailTemplate('verificationEmail', { // Use your existing verification template
+      name: `${newUser.firstName} ${newUser.lastName}`, // Or just firstName
       verificationCode: verificationCode,
     });
 
     if (htmlEmail) {
       await sendEmail(
         email,
-        "Verify Your Email - Parking System",
-        `Your email verification code is: ${verificationCode}`,
+        'Verify Your ParkWell Staff Account',
+        `Your ParkWell staff account verification code is: ${verificationCode}`,
         htmlEmail
       );
     } else {
-      console.error("Could not render verification email template.");
-      await sendEmail(
-        email,
-        "Verify Your Email - Parking System",
-        `Your email verification code is: ${verificationCode}. (Template error)`,
-        `<p>Your email verification code is: <strong>${verificationCode}</strong></p>`
-      );
+      console.error("Could not render staff verification email template for:", email);
+      // Fallback might be needed
     }
 
-
+    // logAction removed
     res.status(201).json({
-      message:
-        "User registered successfully. Please check your email for the verification code.",
+      message: 'Staff account created. Please check email for verification code.',
+      userId: newUser.id // Return ID for reference
     });
   } catch (error) {
-    console.error("Registration error:", error);
-    res.status(500).json({ message: "Server error during registration" });
+    console.error('Staff registration error:', error);
+    res.status(500).json({ message: 'Server error during staff registration' });
   }
 };
 
 /**
- * Verifies a user's email address.
+ * Verifies a staff user's email address.
  */
-
 const verifyEmail = async (req, res) => {
   try {
     const { email, code } = req.body;
-
     if (!email || !code) {
-      return res
-        .status(400)
-        .json({ message: "Email and verification code are required" });
+      return res.status(400).json({ message: 'Email and verification code are required' });
     }
-
     const user = await prisma.user.findUnique({ where: { email } });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    if (user.email_verified) {
-      return res.status(400).json({ message: "Email already verified" });
-    }
-    console.log("code");
-    console.log(code);
-
-    console.log(user);
+    if (!user) return res.status(404).json({ message: 'Staff account not found' });
+    if (user.email_verified) return res.status(400).json({ message: 'Email already verified' });
     if (user.email_verification_code !== code) {
-      return res.status(400).json({ message: "Invalid verification code" });
+      return res.status(400).json({ message: 'Invalid verification code' });
     }
-
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        email_verified: true,
-        email_verification_code: null,
-      },
+      data: { email_verified: true, email_verification_code: null },
     });
-
-
-
-    res.status(200).json({ message: "Email verified successfully" });
+    // logAction removed
+    res.status(200).json({ message: 'Staff email verified successfully' });
   } catch (error) {
-    console.error("Email verification error:", error);
-    res.status(500).json({ message: "Server error during email verification" });
+    console.error('Staff email verification error:', error);
+    res.status(500).json({ message: 'Server error during email verification' });
   }
 };
 
+/**
+ * Logs in a staff user (Admin or Parking Attendant).
+ */
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
+      return res.status(400).json({ message: 'Email and password are required' });
     }
-
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { role: true },
+      include: { role: { select: { name: true } } }, // Include role name
     });
-
-    if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
+    if (!user) return res.status(401).json({ message: 'Invalid email or password' });
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: "Invalid email or password" });
-    }
+    if (!isPasswordValid) return res.status(401).json({ message: 'Invalid email or password' });
 
     if (!user.email_verified) {
-      return res.status(403).json({
-        message: "Email not verified. Please verify your email first.",
-      });
+      return res.status(403).json({ message: 'Email not verified. Please verify your email first.' });
+    }
+
+    // Ensure the user has a staff role (ADMIN or PARKING_ATTENDANT)
+    if (user.role.name !== RoleName.ADMIN && user.role.name !== RoleName.PARKING_ATTENDANT) {
+      return res.status(403).json({ message: 'Access denied. Not a staff account.' });
     }
 
     const token = generateToken({
       user_id: user.id,
-      role_id: user.role.id,
+      role_id: user.role_id, // role_id is now UUID string
       role_name: user.role.name,
+      firstName: user.firstName // Include firstName in token for display
     });
-
-
+    // logAction removed
     res.status(200).json({
-      message: "Login successful",
+      message: 'Login successful',
       token,
       user: {
         id: user.id,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         role: user.role.name,
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error during login" });
-  }
-};
-
-const logout = async (req, res) => {
-  if (req.user && req.user.user_id) {
-    res.status(200).json({
-      message:
-        "Logged out successfully. Please clear your token on the client-side.",
-    });
-  }
-
-};
-
-const getCurrentUser = async (req, res) => {
-  try {
-    const userId = req.user.user_id;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: {
-                permission: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const permissions = user.role.permissions.map((rp) => rp.permission.name);
-
-    res.status(200).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role.name,
-      balance: user.balance,
-      email_verified: user.email_verified,
-      permissions,
-      created_at: user.created_at,
-    });
-  } catch (error) {
-    console.error("Get current user error:", error);
-    res
-      .status(500)
-      .json({ message: "Server error retrieving user information" });
+    console.error('Staff login error:', error);
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 
 /**
- * Initiates the password reset process by sending an OTP.
- * Reuses `reset_token` field for OTP and `reset_token_expires` for OTP expiry.
- * OTP expiry set to 10 minutes.
+ * Fetches the current authenticated staff user's details.
  */
-const forgotPassword = async (req, res) => {
+const getCurrentUser = async (req, res) => { // Renamed from getStaffProfile for consistency
   try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      // Don't reveal if email exists
-      return res.status(200).json({
-        message:
-          "If your email is registered, you will receive a password reset OTP.",
-      });
-    }
-
-    const otp = generateVerificationCode(); // Generate 6-digit OTP
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // OTP expires in 10 minutes
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        reset_token: otp, // Store OTP in reset_token field
-        reset_token_expires: otpExpires,
+    const userId = req.user.user_id; // From JWT
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { // Select specific fields, exclude password
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        email_verified: true,
+        role: {
+          select: {
+            name: true,
+            permissions: { // Include permissions for the role
+              select: { permission: { select: { name: true } } }
+            }
+          }
+        },
+        created_at: true,
       },
     });
 
-    // Use the passwordResetOtpEmail template
-    const htmlEmail = renderEmailTemplate("passwordResetOtpEmail", {
-      name: user.name,
+    if (!user) {
+      return res.status(404).json({ message: 'Staff user not found' });
+    }
+
+    // Flatten permissions
+    const permissions = user.role.permissions.map(rp => rp.permission.name);
+
+    res.status(200).json({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role.name,
+      email_verified: user.email_verified,
+      permissions, // Send flat array of permission names
+      created_at: user.created_at,
+    });
+  } catch (error) {
+    console.error('Get current staff user error:', error);
+    res.status(500).json({ message: 'Server error retrieving staff information' });
+  }
+};
+
+// ForgotPassword and ResetPassword (for staff) can remain largely the same as OTP based
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || (user.role_id && !(await prisma.role.findUnique({ where: { id: user.role_id } }))?.name.startsWith("ADMIN") && !(await prisma.role.findUnique({ where: { id: user.role_id } }))?.name.startsWith("PARKING_ATTENDANT"))) {
+      // Don't reveal if it's a staff email or not for security, just give generic message
+      return res.status(200).json({ message: 'If your email is registered as a staff account, you will receive a password reset OTP.' });
+    }
+
+    const otp = generateVerificationCode();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { reset_token: otp, reset_token_expires: otpExpires },
+    });
+
+    const htmlEmail = renderEmailTemplate('passwordResetOtpEmail', { // Re-use OTP template
+      name: `${user.firstName}`,
       otp: otp,
     });
 
     if (htmlEmail) {
       await sendEmail(
-        email,
-        "Your Password Reset OTP - Parking System",
-        `Your password reset OTP is: ${otp}. It is valid for 10 minutes.`, // Plain text fallback
-        htmlEmail
-      );
-    } else {
-      console.error("Could not render password reset OTP email template.");
-      await sendEmail(
-        email,
-        "Your Password Reset OTP - Parking System",
-        `Your password reset OTP is: ${otp}. It is valid for 10 minutes. (Template Error)`,
-        `<p>Your password reset OTP is: <strong>${otp}</strong>. It is valid for 10 minutes.</p>`
+        email, 'ParkWell Staff Password Reset OTP',
+        `Your password reset OTP is: ${otp}. Valid for 10 minutes.`, htmlEmail
       );
     }
-
-
-
-    res.status(200).json({
-      message:
-        "If your email is registered, you will receive a password reset OTP.",
-    });
+    // logAction removed
+    res.status(200).json({ message: 'If your email is registered, you will receive a password reset OTP.' });
   } catch (error) {
-    console.error("Forgot password error:", error);
-    res
-      .status(500)
-      .json({ message: "Server error during password reset OTP request" });
+    console.error('Staff forgot password error:', error);
+    res.status(500).json({ message: 'Server error during password reset request' });
   }
 };
 
-/**
- * Resets a user's password using an OTP.
- * Expects email, OTP (as 'otp_code'), and newPassword.
- */
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp_code, newPassword } = req.body; // Changed 'token' to 'otp_code'
-
+    const { email, otp_code, newPassword } = req.body;
     if (!email || !otp_code || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Email, OTP code, and new password are required" });
+      return res.status(400).json({ message: 'Email, OTP, and new password are required' });
     }
-    // Add production password validation here
-    if (newPassword.length < 6) {
-      // Example basic validation
-      return res
-        .status(400)
-        .json({ message: "New password must be at least 6 characters long" });
-    }
+    // Add stricter password validation here
+    if (newPassword.length < 8) return res.status(400).json({ message: 'New password must be at least 8 characters' });
 
     const user = await prisma.user.findFirst({
-      where: {
-        email,
-        reset_token: otp_code, // Check OTP against reset_token field
-        reset_token_expires: { gt: new Date() },
-      },
+      where: { email, reset_token: otp_code, reset_token_expires: { gt: new Date() } },
     });
-
-    if (!user) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
+    if (!user) return res.status(400).json({ message: 'Invalid or expired OTP' });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        reset_token: null,
-        reset_token_expires: null,
-      },
+      data: { password: hashedPassword, reset_token: null, reset_token_expires: null },
     });
-
-
-
-    res.status(200).json({ message: "Password has been reset successfully" });
+    // logAction removed
+    res.status(200).json({ message: 'Staff password has been reset successfully' });
   } catch (error) {
-    console.error("Reset password error:", error);
-    res.status(500).json({ message: "Server error during password reset" });
+    console.error('Staff reset password error:', error);
+    res.status(500).json({ message: 'Server error during password reset' });
   }
 };
 
+
 module.exports = {
-  register,
+  registerStaff, // This could be used by an admin to create staff, or a dedicated staff registration page
   verifyEmail,
   login,
-  logout,
   getCurrentUser,
   forgotPassword,
   resetPassword,

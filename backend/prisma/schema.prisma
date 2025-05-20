@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,7 +8,7 @@ datasource db {
 }
 
 enum RoleName {
-  USER
+  PARKING_ATTENDANT
   ADMIN
 }
 
@@ -47,113 +44,75 @@ model RolePermission {
 }
 
 model User {
-  id                      String        @id @default(uuid())
-  name                    String
-  email                   String        @unique
-  password                String
-  role_id                 String
-  role                    Role          @relation(fields: [role_id], references: [id])
-  email_verified          Boolean       @default(false)
-  email_verification_code String?
-  reset_token             String?
-  reset_token_expires     DateTime?
-  balance                 Decimal       @default(0.00)
-  vehicles                Vehicle[]
-  slot_requests           SlotRequest[]
-  logs                    Log[]         @relation("UserLogs")
-  created_at              DateTime      @default(now())
-  updated_at              DateTime      @updatedAt
+  id        String @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String @unique
+  password  String
+  role_id   String
+  role      Role   @relation(fields: [role_id], references: [id])
+
+  email_verified          Boolean @default(false) 
+  email_verification_code String? @unique 
+
+  reset_token         String?   @unique
+  reset_token_expires DateTime?
+
+ 
+  recorded_entries VehicleEntry[] @relation("RecordedByAttendant")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
-enum VehicleType {
-  CAR
-  MOTORCYCLE
-  TRUCK
-  BICYCLE
+model Parking {
+  id              String  @id @default(uuid())
+  code            String  @unique
+  name            String
+  total_spaces    Int
+  occupied_spaces Int     @default(0)
+  location        String?
+  charge_per_hour Decimal
+
+  vehicle_entries VehicleEntry[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
-enum VehicleSize {
-  SMALL
-  MEDIUM
-  LARGE
-  EXTRA_LARGE
+model VehicleEntry {
+  id           String @id @default(uuid())
+  plate_number String
+
+  parking_id String
+  parking    Parking @relation(fields: [parking_id], references: [id])
+
+  entry_time DateTime  @default(now())
+  exit_time  DateTime?
+
+  calculated_duration_minutes Int?
+  charged_amount              Decimal?
+
+  status VehicleEntryStatus @default(PARKED)
+
+  ticket_number String  @unique
+  notes         String?
+
+  recorded_by_id String?
+  recorded_by    User?   @relation("RecordedByAttendant", fields: [recorded_by_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([plate_number])
+  @@index([status])
+  @@index([entry_time])
+  @@index([exit_time])
 }
 
-model Vehicle {
-  id               String        @id @default(uuid())
-  user_id          String
-  user             User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  plate_number     String        @unique
-  vehicle_type     VehicleType
-  size             VehicleSize
-  other_attributes Json?
-  slot_requests    SlotRequest[]
-  created_at       DateTime      @default(now())
-  updated_at       DateTime      @updatedAt
+enum VehicleEntryStatus {
+  PARKED
+  EXITED
+  
 }
 
-enum ParkingSlotStatus {
-  AVAILABLE
-  UNAVAILABLE
-  MAINTENANCE
-}
-
-enum SlotLocation {
-  NORTH_WING
-  SOUTH_WING
-  EAST_WING
-  WEST_WING
-  LEVEL_1
-  LEVEL_2
-}
-
-model ParkingSlot {
-  id            String            @id @default(uuid())
-  slot_number   String            @unique
-  size          VehicleSize
-  vehicle_type  VehicleType
-  status        ParkingSlotStatus @default(AVAILABLE)
-  location      SlotLocation?
-  slot_request  SlotRequest?
-  created_at    DateTime          @default(now())
-  updated_at    DateTime          @updatedAt
-  cost_per_hour Decimal?
-}
-
-enum SlotRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  CANCELLED
-}
-
-model SlotRequest {
-  id                      String            @id @default(uuid())
-  user_id                 String
-  user                    User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  vehicle_id              String
-  vehicle                 Vehicle           @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
-  parking_slot_id         String?           @unique
-  parking_slot            ParkingSlot?      @relation(fields: [parking_slot_id], references: [id], onDelete: SetNull)
-  status                  SlotRequestStatus @default(PENDING)
-  admin_notes             String?
-  requested_at            DateTime          @default(now())
-  resolved_at             DateTime?
-  created_at              DateTime          @default(now())
-  updated_at              DateTime          @updatedAt
-  expected_duration_hours Int?
-  calculated_cost         Decimal
-}
-
-model Log {
-  id          String   @id @default(uuid())
-  user_id     String?
-  user        User?    @relation("UserLogs", fields: [user_id], references: [id], onDelete: SetNull)
-  action      String
-  entity_type String?
-  entity_id   String?
-  details     Json?
-  timestamp   DateTime @default(now())
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-}

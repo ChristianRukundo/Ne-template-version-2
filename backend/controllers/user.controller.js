@@ -1,135 +1,116 @@
 // controllers/user.controller.js
 const prisma = require("../config/database");
 const bcrypt = require("bcrypt");
-const { generateVerificationCode } = require("../utils/helpers"); // <-- IMPORT
-const { sendEmail } = require("../config/email"); // <-- IMPORT
-const { renderEmailTemplate } = require("../utils/renderEmailTemplate"); // <-- IMPORT
+// Assuming these are still needed if email change verification is kept.
+// If email change is disallowed from profile, these can be removed.
+const { generateVerificationCode } = require("../utils/helpers");
+const { sendEmail } = require("../config/email");
+const { renderEmailTemplate } = require("../utils/renderEmailTemplate");
+// const { logAction } = require('../utils/logger'); // Uncomment if logging is re-enabled
 
 /**
- * Updates the profile of the currently authenticated user.
- * Allows updating name, email (requires re-verification if changed), and password.
+ * Updates the profile of the currently authenticated staff user.
+ * Allows updating firstName, lastName, and password.
+ * Email is typically not changed via this profile update for simplicity;
+ * if it were, it would require re-verification.
  */
 const updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user.user_id;
-    const { name, email, currentPassword, newPassword } = req.body;
+    const userId = req.user.user_id; // From JWT (user_id is the UUID string)
+    const { firstName, lastName, email, current_password, new_password } = req.body;
+    // Note: 'email' might be sent from frontend but we'll ignore it if we decide not to allow email changes here.
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found." }); // Should be rare if token is valid
     }
 
     const updateData = {};
-    let emailChanged = false;
-    let newVerificationCode = null;
+    let emailActuallyChanged = false; // Flag if we were to allow email changes
+    let newVerificationCodeForEmail = null;
 
-    if (name && name !== user.name) {
-      updateData.name = name;
+    if (firstName && firstName.trim() !== "" && firstName !== user.firstName) {
+      updateData.firstName = firstName.trim();
+    }
+    if (lastName && lastName.trim() !== "" && lastName !== user.lastName) {
+      updateData.lastName = lastName.trim();
     }
 
-    if (email && email !== user.email) {
-      const existingEmailUser = await prisma.user.findFirst({
-        where: { email: email, NOT: { id: userId } },
-      });
-      if (existingEmailUser) {
-        return res
-          .status(400)
-          .json({ message: "New email address is already in use" });
+    if (new_password) {
+      if (!current_password) {
+        return res.status(400).json({ message: "Current password is required to set a new password." });
       }
-      updateData.email = email;
-      updateData.email_verified = false;
-      newVerificationCode = generateVerificationCode(); // Generate code
-      updateData.email_verification_code = newVerificationCode;
-      emailChanged = true;
-    }
-
-    if (newPassword) {
-      if (!currentPassword) {
-        return res
-          .status(400)
-          .json({
-            message: "Current password is required to set a new password",
-          });
-      }
-      const isPasswordValid = await bcrypt.compare(
-        currentPassword,
-        user.password
-      );
+      const isPasswordValid = await bcrypt.compare(current_password, user.password);
       if (!isPasswordValid) {
-        return res.status(400).json({ message: "Incorrect current password" });
+        return res.status(400).json({ message: "Incorrect current password." });
       }
-      if (newPassword.length < 6) {
-        return res
-          .status(400)
-          .json({ message: "New password must be at least 6 characters long" });
+      // Add your staff password complexity validation here (e.g., min length, char types)
+      if (new_password.length < 8) { // Example: min 8 characters for staff
+        return res.status(400).json({ message: "New password must be at least 8 characters long." });
       }
-      updateData.password = await bcrypt.hash(newPassword, 10);
+
+      updateData.password = await bcrypt.hash(new_password, 10);
+    } else if (current_password && !new_password) {
+      // User provided current password but no new password
+      return res.status(400).json({ message: "Please provide a new password if you intend to change it." });
     }
+
 
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ message: "No changes provided to update" });
+      return res.status(400).json({ message: "No changes provided to update." });
     }
 
     const updatedUserFromDb = await prisma.user.update({
       where: { id: userId },
       data: updateData,
-      // Select only necessary fields to return or use for email
-      select: {
+      select: { // Return the updated user details (excluding password)
         id: true,
-        name: true,
-        email: true,
+        firstName: true,
+        lastName: true,
+        email: true, // Current email
         email_verified: true,
         role: { select: { name: true } },
+
       },
     });
 
-    if (emailChanged && newVerificationCode) {
-      const verificationLink = `${
-        process.env.FRONTEND_URL
-      }/verify-email?code=${newVerificationCode}&email=${encodeURIComponent(
-        updatedUserFromDb.email
-      )}`;
-      const htmlEmail = renderEmailTemplate("verificationEmail", {
-        name: updatedUserFromDb.name,
-        verificationCode: newVerificationCode,
-        verificationLink: verificationLink,
+    // If email change was implemented and happened:
+    /*
+    if (emailActuallyChanged && newVerificationCodeForEmail) {
+      const userFullName = `${updatedUserFromDb.firstName || ''} ${updatedUserFromDb.lastName || ''}`.trim();
+      const htmlEmail = renderEmailTemplate('verificationEmail', { // Assuming a generic verification template
+          name: userFullName || "User",
+          verificationCode: newVerificationCodeForEmail,
       });
       if (htmlEmail) {
-        await sendEmail(
-          updatedUserFromDb.email,
-          "Verify Your New Email Address - Parking System",
-          `Your email verification code for the new email address is: ${newVerificationCode}`,
-          htmlEmail
-        );
+          await sendEmail(
+            updatedUserFromDb.email, // Send to the new email
+            'Verify Your New Email Address - ParkWell',
+            `Your email verification code is: ${newVerificationCodeForEmail}`,
+            htmlEmail
+          );
       } else {
-        console.error("Could not render new email verification template.");
-        // Fallback
-        await sendEmail(
-          updatedUserFromDb.email,
-          "Verify Your New Email Address - Parking System",
-          `Your email verification code for the new email address is: ${newVerificationCode} (Template Error)`,
-          `<p>Your new email verification code is: <strong>${newVerificationCode}</strong></p>`
-        );
+          console.error("Could not render new email verification template for user:", userId);
       }
     }
+    */
 
 
     res.status(200).json({
-      message: `Profile updated successfully.${
-        emailChanged ? " Please verify your new email address." : ""
-      }`,
-      user: {
-        // Return the updated user data
+      message: `Profile updated successfully.${emailActuallyChanged ? " Please verify your new email address." : ""}`,
+      user: { // Return data consistent with what login and /auth/me might return
         id: updatedUserFromDb.id,
-        name: updatedUserFromDb.name,
+        firstName: updatedUserFromDb.firstName,
+        lastName: updatedUserFromDb.lastName,
         email: updatedUserFromDb.email,
         role: updatedUserFromDb.role.name,
         email_verified: updatedUserFromDb.email_verified,
+        // permissions: updatedUserFromDb.role.permissions.map(p => p.permission.name) // If permissions were fetched
       },
     });
   } catch (error) {
-    console.error("Update profile error:", error);
-    res.status(500).json({ message: "Server error updating profile" });
+    console.error("Update staff profile error:", error);
+    res.status(500).json({ message: "Server error updating profile." });
   }
 };
 

@@ -17,7 +17,7 @@ import {
   adminGetAllParkingSlots,
   adminDeleteParkingSlot,
   adminBulkCreateParkingSlots, // Import bulk create
-} from "../../api/parking-slot"; // Adjust path
+} from "../../api/admin-parkings.js"; // Adjust path
 import { useAuth } from "../../context/auth-context";
 import {
   Table,
@@ -53,7 +53,7 @@ import { Loader } from "../../components/ui/loader";
 import { Pagination } from "../../components/ui/pagination";
 import { EmptyState } from "../../components/ui/empty-state";
 import { Badge } from "../../components/ui/badge";
-import { ParkingSlotForm } from "../../components/admin/parking-slot-form"; // Import the form
+import { ParkingSlotForm } from "../../components/admin/AdminParkingFormPage.jsx.jsx"; // Import the form
 // Placeholder for Bulk Form - create this next
 // import { BulkParkingSlotForm } from "../../components/admin/bulk-parking-slot-form";
 

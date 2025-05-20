@@ -45,7 +45,7 @@ export const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({ name: "", email: "", password: "", roleName: RoleName.USER });
 
-  const canManageUsers = user?.permissions?.includes("manage_all_users");
+  const canManageUsers = user?.permissions?.includes("manage_users") || user?.role?.name === "ADMIN";
 
   const { data: usersData, isLoading, isError, error: queryError, refetch } = useQuery(
     ["adminUsers", searchQuery, roleFilter, sortBy, sortOrder, currentPage, pageSize],
