@@ -22,7 +22,7 @@ import {
   adminGetAllSlotRequests,
   adminResolveSlotRequest,
 } from "../../api/slot-requests";
-import { getAvailableParkingSlots } from "../../api/parking-slot";
+import { getAvailableParkingSlots } from "../../api/admin-parkings.js";
 import { useAuth } from "../../context/auth-context";
 import {
   Table,
@@ -353,9 +353,8 @@ export const AdminSlotRequestsPage = () => {
                         User{" "}
                         {sortBy === "user_name" && (
                           <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
+                            className={`ml-1 h-3 w-3 ${sortOrder === "desc" ? "rotate-180" : ""
+                              }`}
                           />
                         )}
                       </TableHead>
@@ -366,9 +365,8 @@ export const AdminSlotRequestsPage = () => {
                         Vehicle{" "}
                         {sortBy === "vehicle_plate" && (
                           <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
+                            className={`ml-1 h-3 w-3 ${sortOrder === "desc" ? "rotate-180" : ""
+                              }`}
                           />
                         )}
                       </TableHead>
@@ -380,9 +378,8 @@ export const AdminSlotRequestsPage = () => {
                         Requested On{" "}
                         {sortBy === "requested_at" && (
                           <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
+                            className={`ml-1 h-3 w-3 ${sortOrder === "desc" ? "rotate-180" : ""
+                              }`}
                           />
                         )}
                       </TableHead>
@@ -393,9 +390,8 @@ export const AdminSlotRequestsPage = () => {
                         Status{" "}
                         {sortBy === "status" && (
                           <ArrowUpDown
-                            className={`ml-1 h-3 w-3 ${
-                              sortOrder === "desc" ? "rotate-180" : ""
-                            }`}
+                            className={`ml-1 h-3 w-3 ${sortOrder === "desc" ? "rotate-180" : ""
+                              }`}
                           />
                         )}
                       </TableHead>
@@ -419,9 +415,8 @@ export const AdminSlotRequestsPage = () => {
                         </TableCell>
                         <TableCell>
                           {req.parking_slot
-                            ? `${req.parking_slot.slot_number} (${
-                                req.parking_slot.location || "N/A"
-                              })`
+                            ? `${req.parking_slot.slot_number} (${req.parking_slot.location || "N/A"
+                            })`
                             : "N/A"}
                         </TableCell>
                         <TableCell>
@@ -486,11 +481,10 @@ export const AdminSlotRequestsPage = () => {
             </DialogTitle>
             <DialogDescription>
               {selectedRequestToResolve?.status === "PENDING"
-                ? `Review and ${
-                    resolutionStatus === "APPROVED"
-                      ? "approve by assigning a slot"
-                      : "reject"
-                  } this request.`
+                ? `Review and ${resolutionStatus === "APPROVED"
+                  ? "approve by assigning a slot"
+                  : "reject"
+                } this request.`
                 : `Viewing resolved request. You can modify the notes or re-assign slot if it was approved.`}
             </DialogDescription>
           </DialogHeader>
@@ -511,8 +505,8 @@ export const AdminSlotRequestsPage = () => {
                 <span className="font-medium">Requested:</span>{" "}
                 {selectedRequestToResolve?.requested_at
                   ? new Date(
-                      selectedRequestToResolve.requested_at
-                    ).toLocaleString()
+                    selectedRequestToResolve.requested_at
+                  ).toLocaleString()
                   : "N/A"}
               </p>
               {selectedRequestToResolve?.status !== "PENDING" &&
@@ -531,7 +525,7 @@ export const AdminSlotRequestsPage = () => {
                 disabled={
                   selectedRequestToResolve?.status !== "PENDING" &&
                   selectedRequestToResolve?.status !==
-                    "APPROVED" /* Allow changing approved to rejected */
+                  "APPROVED" /* Allow changing approved to rejected */
                 }
               >
                 <SelectTrigger id="resolutionStatus">

@@ -6,7 +6,7 @@ import { useQuery } from "react-query";
 import { toast } from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Search, ArrowUpDown, ParkingCircle, Send, DollarSign } from "lucide-react"; // Added DollarSign
-import { getAvailableParkingSlots } from "../api/parking-slot";
+import { getAvailableParkingSlots } from "../api/admin-parkings.js";
 import { useAuth } from "../context/auth-context";
 import {
   Table,

@@ -31,12 +31,18 @@ import { AdminUserFormPage } from "./pages/admin/users-form-page";
 import { UserManagement } from "./pages/admin/user-management";
 
 
-import { AdminParkingSlotsPage } from "./pages/admin/parking-slot";
-import { AvailableSlotsPage } from "./pages/available-slots";
-import { AdminSlotRequestsPage } from "./pages/admin/admin-slot-requests-page";
+
+// import { AvailableSlotsPage } from "./pages/available-slots";
+// import { AdminSlotRequestsPage } from "./pages/admin/admin-slot-requests-page";
 import { HomePage } from "./pages/home-page";
 import { GenerateParkingTicketPage } from "./pages/admin/GenerateParkingTicketPage"
 import { ViewTicketPage } from './pages/view-ticket-page';
+import { AdminParkingManagementPage } from "./pages/admin/admin-parking-management-page";
+import { AdminParkingFormPage } from "./components/admin/AdminParkingFormPage.jsx";
+import { AttendantDashboardPage } from "./pages/attendant-dashboard-page.jsx";
+import { AttendantViewParkingsPage } from "./pages/attendant/attendant-view-parkings-page.jsx";
+import { VehicleExitPage } from "./components/attendant/vehicle-exit-page.jsx";
+import { AdminReportsPage } from "./pages/admin/dmin-reports-page.jsx";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -58,14 +64,14 @@ export default function App() {
             {/* Auth Routes */}
             <Route path="/home" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register-staff" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/view-ticket" element={<ViewTicketPage />} />
 
             {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
+            <Route>
               {/* Group Dashboard Routes inside DashboardLayout */}
               <Route path="/" element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/my-vehicles" replace />} />
@@ -80,31 +86,33 @@ export default function App() {
                   element={<VehicleForm isEdit={true} />}
                 />
 
-                <Route
-                  path="/admin/parking-slots"
-                  element={<AdminParkingSlotsPage />}
-                />
+                <Route path="/attendant/view-parkings" element={<AttendantViewParkingsPage />} />
 
-                <Route
-                  path="/admin/slot-requests"
-                  element={<AdminSlotRequestsPage />}
-                />
+                <Route path="/attendant/vehicle-entry" element={<AttendantDashboardPage />} />
+
+                <Route path="/attendant/record-exit" element={<VehicleExitPage />} />
+
+
+
 
 
                 {/* Transaction Routes */}
 
-                <Route
+                {/* <Route
                   path="/parking-slots/available"
                   element={<AvailableSlotsPage />}
-                />
-
-                {/* Reports Routes */}
-                {/* <Route path="reports" element={<ReportsPage />} /> */}
+                /> */}
 
                 {/* Admin Routes */}
                 <Route path="admin">
                   {/* <Route path="users" element={<AdminUsersPage />} /> */}
                   <Route path="users" element={<UserManagement />} />
+                  <Route path="reports" element={<AdminReportsPage />} />
+
+                  <Route path="parkings" element={<AdminParkingManagementPage />} />
+                  <Route path="parkings/new" element={<AdminParkingFormPage />} />
+                  <Route path="parkings/:id/edit" element={<AdminParkingFormPage isEdit={true} />} />
+
                   <Route path="generate-ticket" element={<GenerateParkingTicketPage />} />
                   <Route path="users/new" element={<AdminUserFormPage isEdit={false} />} />
                   <Route

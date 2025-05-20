@@ -20,7 +20,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export const registerUser = async (userData) => {
+export const registerStaff = async (userData) => {
   const response = await api.post("/auth/register", userData);
   return response.data;
 };

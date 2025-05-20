@@ -71,7 +71,7 @@ export const AdminUsersPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Check permissions
-  const canManageUsers = user?.permissions?.includes("manage_all_users");
+  const canManageUsers = user?.permissions?.includes("manage_users");
 
   // Fetch users with pagination
   const { data, isLoading, isError, refetch } = useQuery(
