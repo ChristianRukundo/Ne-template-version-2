@@ -4,8 +4,8 @@
   "description": "Backend for Inventory Management System",
   "main": "server.js",
   "scripts": {
-    "start": "node api.js && node server.js",
-    "dev": "node api.js && nodemon server.js",
+    "start": "node api.js && node init && node server.js",
+    "dev": "node api.js && node init && nodemon server.js",
     "migrate": "prisma migrate dev",
     "seed": "node prisma/seed.js"
   },
